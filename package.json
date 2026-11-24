@@ -48,7 +48,8 @@
     "typecheck": "tsc --noEmit",
     "emulators": "firebase emulators:start --only auth,firestore,hosting",
     "test:rules": "firebase emulators:exec --only firestore --project demo-rules-test 'node --test tests/'",
-    "deploy:firebase": "firebase deploy --only firestore,hosting"
+    "deploy:firebase": "firebase deploy --only firestore,hosting",
+    "deploy:functions": "firebase deploy --only functions"
   },
   "private": true
 }
