@@ -1,5 +1,5 @@
 import { onSnapshot, orderBy, query, where, collection } from 'firebase/firestore';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { db } from '@/lib/firebase';
 import {
@@ -87,7 +87,10 @@ export function useItemCounts(listId: string): { done: number; total: number } |
   return counts;
 }
 
-/** Items in a list: unchecked first, then checked, each in the order they were added. */
+/**
+ * Items in a list, in the order they were added. Ticking an item doesn't move it: it stays
+ * in place, struck through.
+ */
 export function useItems(listId: string): Snapshot<Item[]> {
   const [state, setState] = useState<Snapshot<Item[]>>({ data: [], loading: true, error: null });
 
@@ -99,10 +102,5 @@ export function useItems(listId: string): Snapshot<Item[]> {
     );
   }, [listId]);
 
-  const sorted = useMemo(
-    () => [...state.data.filter((i) => !i.checked), ...state.data.filter((i) => i.checked)],
-    [state.data],
-  );
-
-  return { ...state, data: sorted };
+  return state;
 }
