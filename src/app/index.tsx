@@ -20,6 +20,8 @@ import { Button, CenteredMessage, Input } from '@/components/ui';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { SignedIn } from '@/hooks/use-auth';
 import { useItemCounts, useMyLists } from '@/hooks/use-lists';
+import { useProfile } from '@/hooks/use-profile';
+import { hasUnreadComments } from '@/lib/profile';
 import { useTheme } from '@/hooks/use-theme';
 import {
   createList,
@@ -126,6 +128,8 @@ function ListRow({
   const theme = useTheme();
   const others = list.memberIds.length - 1;
   const counts = useItemCounts(list.id);
+  const { profile } = useProfile();
+  const unread = hasUnreadComments(list.lastCommentAt, profile, list.id);
   const [draft, setDraft] = useState(list.name);
 
   const startRename = () => {
@@ -225,10 +229,15 @@ function ListRow({
           onPress={onShowComments}
           hitSlop={10}
           accessibilityRole="button"
-          accessibilityLabel={`Show ${list.commentCount} comment${list.commentCount === 1 ? '' : 's'}`}
+          accessibilityLabel={`Show ${list.commentCount} comment${list.commentCount === 1 ? '' : 's'}${unread ? ', new comments' : ''}`}
           style={({ pressed }) => [styles.commentBadge, { opacity: pressed ? 0.6 : 1 }]}>
-          <Ionicons name="chatbubble-outline" size={20} color={theme.accent} />
-          <ThemedText type="smallBold" style={{ color: theme.accent }}>
+          {/* Blue and filled when there are comments you haven't seen; grey outline once seen. */}
+          <Ionicons
+            name={unread ? 'chatbubble' : 'chatbubble-outline'}
+            size={20}
+            color={unread ? theme.accent : theme.textSecondary}
+          />
+          <ThemedText type="smallBold" style={{ color: unread ? theme.accent : theme.textSecondary }}>
             {list.commentCount}
           </ThemedText>
         </Pressable>

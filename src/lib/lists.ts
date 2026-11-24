@@ -17,6 +17,7 @@ import {
 import { Alert } from 'react-native';
 
 import { auth, db } from '@/lib/firebase';
+import { userRef } from '@/lib/profile';
 import type { ShopId } from '@/lib/shops';
 
 export type ShoppingList = {
@@ -26,6 +27,8 @@ export type ShoppingList = {
   memberIds: string[];
   /** Total comments across all items (0 when absent on older lists). */
   commentCount: number;
+  /** When the newest comment was posted (null on lists with no comments since this existed). */
+  lastCommentAt: Timestamp | null;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 };
@@ -71,7 +74,12 @@ function uid() {
 // so freshly added items sort correctly before the server acknowledges them.
 export function toList(snap: DocumentSnapshot): ShoppingList {
   const data = snap.data({ serverTimestamps: 'estimate' }) as Omit<ShoppingList, 'id'>;
-  return { id: snap.id, ...data, commentCount: data.commentCount ?? 0 };
+  return {
+    id: snap.id,
+    ...data,
+    commentCount: data.commentCount ?? 0,
+    lastCommentAt: data.lastCommentAt ?? null,
+  };
 }
 
 export function toItem(snap: DocumentSnapshot): Item {
@@ -217,6 +225,16 @@ export function addComment(listId: string, itemId: string, text: string, authorN
     createdAt: serverTimestamp(),
   });
   batch.update(doc(itemsRef(listId), itemId), { commentCount: increment(1) });
-  batch.update(listRef(listId), { commentCount: increment(1), updatedAt: serverTimestamp() });
+  batch.update(listRef(listId), {
+    commentCount: increment(1),
+    lastCommentAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  // Your own comment is never "unread" for you: mark the list seen at the same instant.
+  batch.set(
+    userRef(uid()),
+    { lastSeenComments: { [listId]: serverTimestamp() } },
+    { merge: true },
+  );
   batch.commit().catch(logError('addComment'));
 }

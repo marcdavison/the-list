@@ -1,4 +1,4 @@
-import { doc, setDoc, type DocumentSnapshot, type Timestamp } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, type DocumentSnapshot, type Timestamp } from 'firebase/firestore';
 import { Alert } from 'react-native';
 
 import { auth, db } from '@/lib/firebase';
@@ -23,6 +23,28 @@ export function toProfile(snap: DocumentSnapshot): Profile {
     displayName: (data.displayName as string | undefined) ?? null,
     lastSeenComments: (data.lastSeenComments as Record<string, Timestamp> | undefined) ?? {},
   };
+}
+
+/** Records that the user has just looked at this list's comments (clears the blue badge). */
+export function markCommentsSeen(listId: string) {
+  const user = auth.currentUser;
+  if (!user) return;
+  setDoc(
+    userRef(user.uid),
+    { lastSeenComments: { [listId]: serverTimestamp() } },
+    { merge: true },
+  ).catch((e) => console.warn('[profile] markCommentsSeen failed', e));
+}
+
+/** True if someone else has commented since this user last opened the list's comments. */
+export function hasUnreadComments(
+  lastCommentAt: Timestamp | null,
+  profile: Profile | null,
+  listId: string,
+): boolean {
+  if (!lastCommentAt || !profile) return false;
+  const seen = profile.lastSeenComments[listId];
+  return !seen || lastCommentAt.toMillis() > seen.toMillis();
 }
 
 /** Not awaited: the profile listener sees the change locally at once. */

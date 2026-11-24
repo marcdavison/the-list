@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,6 +9,7 @@ import { useComments, useItems } from '@/hooks/use-lists';
 import { useTheme } from '@/hooks/use-theme';
 import { authorLabel, formatWhen } from '@/lib/format';
 import type { Comment, ShoppingList } from '@/lib/lists';
+import { markCommentsSeen } from '@/lib/profile';
 
 type ItemComments = { itemId: string; itemName: string; comments: Comment[] };
 
@@ -51,6 +52,12 @@ function CommentsBody({ list, uid }: { list: ShoppingList; uid: string }) {
   const theme = useTheme();
   const { data: comments, loading, error } = useComments(list.id);
   const { data: items } = useItems(list.id);
+
+  // Seen on open, and again on close to cover comments that arrived while it was open.
+  useEffect(() => {
+    markCommentsSeen(list.id);
+    return () => markCommentsSeen(list.id);
+  }, [list.id]);
 
   const groups = useMemo<ItemComments[]>(() => {
     const names = new Map(items.map((i) => [i.id, i.text]));

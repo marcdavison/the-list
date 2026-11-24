@@ -60,12 +60,14 @@ service cloud.firestore {
           && validString(request.resource.data.name, 80)
           && request.resource.data.get('commentCount', 0) is int
           && request.resource.data.get('commentCount', 0) >= 0)
-        // Members bump its activity time (alongside item changes), and add one to
-        // commentCount when they post a comment.
+        // Members bump its activity time (alongside item changes); posting a comment adds
+        // one to commentCount and stamps lastCommentAt with the server time.
         || (isMember(resource.data)
-          && changedKeys().hasOnly(['updatedAt', 'commentCount'])
+          && changedKeys().hasOnly(['updatedAt', 'commentCount', 'lastCommentAt'])
           && (!('commentCount' in changedKeys())
-            || request.resource.data.commentCount == resource.data.get('commentCount', 0) + 1))
+            || request.resource.data.commentCount == resource.data.get('commentCount', 0) + 1)
+          && (!('lastCommentAt' in changedKeys())
+            || request.resource.data.lastCommentAt == request.time))
         // Anyone with the link joins by appending only themselves.
         || (signedIn()
           && !(uid() in resource.data.memberIds)
