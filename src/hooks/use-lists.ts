@@ -2,7 +2,17 @@ import { onSnapshot, orderBy, query, where, collection } from 'firebase/firestor
 import { useEffect, useMemo, useState } from 'react';
 
 import { db } from '@/lib/firebase';
-import { itemsRef, listRef, toItem, toList, type Item, type ShoppingList } from '@/lib/lists';
+import {
+  commentsRef,
+  itemsRef,
+  listRef,
+  toComment,
+  toItem,
+  toList,
+  type Comment,
+  type Item,
+  type ShoppingList,
+} from '@/lib/lists';
 
 type Snapshot<T> = { data: T; loading: boolean; error: Error | null };
 
@@ -36,6 +46,21 @@ export function useList(listId: string): Snapshot<ShoppingList | null> {
       listRef(listId),
       (snap) => setState({ data: snap.exists() ? toList(snap) : null, loading: false, error: null }),
       (error) => setState({ data: null, loading: false, error }),
+    );
+  }, [listId]);
+
+  return state;
+}
+
+/** All comments on a list, oldest first. */
+export function useComments(listId: string): Snapshot<Comment[]> {
+  const [state, setState] = useState<Snapshot<Comment[]>>({ data: [], loading: true, error: null });
+
+  useEffect(() => {
+    return onSnapshot(
+      query(commentsRef(listId), orderBy('createdAt', 'asc')),
+      (snap) => setState({ data: snap.docs.map(toComment), loading: false, error: null }),
+      (error) => setState((s) => ({ ...s, loading: false, error })),
     );
   }, [listId]);
 

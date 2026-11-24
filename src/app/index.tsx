@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CommentsSheet } from '@/components/comments-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button, CenteredMessage, Input } from '@/components/ui';
@@ -37,6 +38,9 @@ function MyLists({ uid }: { uid: string }) {
   const [name, setName] = useState('');
   // Only one list can be renamed at a time.
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [commentsListId, setCommentsListId] = useState<string | null>(null);
+  // Looked up live so the sheet's title follows renames; closes if the list goes away.
+  const commentsList = lists.find((l) => l.id === commentsListId) ?? null;
 
   const create = () => {
     if (!name.trim()) return;
@@ -67,6 +71,7 @@ function MyLists({ uid }: { uid: string }) {
               renaming={renamingId === item.id}
               onRename={() => setRenamingId(item.id)}
               onRenameDone={() => setRenamingId(null)}
+              onShowComments={() => setCommentsListId(item.id)}
             />
           )}
           ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
@@ -97,6 +102,7 @@ function MyLists({ uid }: { uid: string }) {
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
+      <CommentsSheet list={commentsList} onClose={() => setCommentsListId(null)} />
     </ThemedView>
   );
 }
@@ -107,12 +113,14 @@ function ListRow({
   renaming,
   onRename,
   onRenameDone,
+  onShowComments,
 }: {
   list: ShoppingList;
   isOwner: boolean;
   renaming: boolean;
   onRename: () => void;
   onRenameDone: () => void;
+  onShowComments: () => void;
 }) {
   const theme = useTheme();
   const others = list.memberIds.length - 1;
@@ -212,15 +220,17 @@ function ListRow({
         {summary}
       </View>
       {list.commentCount > 0 && (
-        <View
-          style={styles.commentBadge}
-          accessible
-          accessibilityLabel={`${list.commentCount} comment${list.commentCount === 1 ? '' : 's'}`}>
+        <Pressable
+          onPress={onShowComments}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Show ${list.commentCount} comment${list.commentCount === 1 ? '' : 's'}`}
+          style={({ pressed }) => [styles.commentBadge, { opacity: pressed ? 0.6 : 1 }]}>
           <ThemedText style={styles.chatIcon}>💬</ThemedText>
           <ThemedText type="smallBold" style={{ color: theme.accent }}>
             {list.commentCount}
           </ThemedText>
-        </View>
+        </Pressable>
       )}
       {/* Only the list's creator can rename it (also enforced in firestore.rules). */}
       {isOwner && (

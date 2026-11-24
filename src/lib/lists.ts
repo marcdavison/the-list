@@ -77,6 +77,10 @@ export function toItem(snap: DocumentSnapshot): Item {
   return { id: snap.id, ...data, shop: data.shop ?? null, commentCount: data.commentCount ?? 0 };
 }
 
+export function toComment(snap: DocumentSnapshot): Comment {
+  return { id: snap.id, ...(snap.data({ serverTimestamps: 'estimate' }) as Omit<Comment, 'id'>) };
+}
+
 /**
  * Writes are not awaited by the UI: Firestore applies them locally at once and
  * syncs in the background (the returned promise only settles on server ack).
