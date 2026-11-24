@@ -15,6 +15,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   serverTimestamp,
   setDoc,
@@ -112,8 +113,10 @@ describe('lists', () => {
     await assertFails(updateDoc(list('eve'), { name: 'Mine now' }));
   });
 
-  test('members can rename; nobody can change the owner', async () => {
-    await assertSucceeds(updateDoc(list('bob'), { name: 'Weekly shop', updatedAt: serverTimestamp() }));
+  test('only the owner can rename; members can bump updatedAt; nobody can change the owner', async () => {
+    await assertFails(updateDoc(list('bob'), { name: 'Weekly shop', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(list('alice'), { name: 'Weekly shop', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(list('bob'), { updatedAt: serverTimestamp() }));
     await assertFails(updateDoc(list('bob'), { ownerId: 'bob' }));
     await assertFails(updateDoc(list('alice'), { ownerId: 'bob' }));
   });
@@ -155,11 +158,12 @@ describe('items', () => {
     await assertSucceeds(getDocs(collection(db('eve'), 'lists', LIST, 'items')));
   });
 
-  test('members can add, tick and delete items', async () => {
+  test('members can add and tick items; only the creator can delete them', async () => {
     await assertSucceeds(setDoc(item('bob', 'eggs'), newItem('bob')));
     await assertSucceeds(updateDoc(item('bob'), { checked: true, checkedBy: 'bob' }));
     await assertSucceeds(updateDoc(item('bob'), { checked: false, checkedBy: null }));
-    await assertSucceeds(deleteDoc(item('bob')));
+    await assertFails(deleteDoc(item('bob')));
+    await assertSucceeds(deleteDoc(item('alice')));
   });
 
   test('adding an item and bumping the list activity time in one batch works', async () => {
@@ -179,5 +183,51 @@ describe('items', () => {
     await assertFails(setDoc(item('bob', 'f'), noShop));
     await assertFails(updateDoc(item('bob'), { checked: true, checkedBy: 'alice' }));
     await assertFails(updateDoc(item('bob'), { createdBy: 'bob' }));
+  });
+});
+
+describe('comments', () => {
+  const comment = (uid, id = 'c1') => doc(db(uid), 'lists', LIST, 'comments', id);
+  const newComment = (uid, itemId = 'milk') => ({
+    itemId,
+    text: "Can't find it",
+    authorId: uid,
+    createdAt: serverTimestamp(),
+  });
+
+  // Mirrors addComment() in src/lib/lists.ts.
+  const commentBatch = (uid, itemId = 'milk') => {
+    const batch = writeBatch(db(uid));
+    batch.set(comment(uid), newComment(uid, itemId));
+    batch.update(item(uid, itemId), { commentCount: increment(1) });
+    batch.update(list(uid), { commentCount: increment(1), updatedAt: serverTimestamp() });
+    return batch;
+  };
+
+  test('members can comment, bumping item and list counts by one', async () => {
+    await assertSucceeds(commentBatch('bob').commit());
+    await assertSucceeds(getDocs(collection(db('alice'), 'lists', LIST, 'comments')));
+  });
+
+  test('non-members cannot read or write comments', async () => {
+    await assertFails(getDocs(collection(db('eve'), 'lists', LIST, 'comments')));
+    await assertFails(setDoc(comment('eve'), newComment('eve')));
+  });
+
+  test('comment validation: own name, real item, sensible length', async () => {
+    await assertFails(setDoc(comment('bob', 'a'), { ...newComment('bob'), authorId: 'alice' }));
+    await assertFails(setDoc(comment('bob', 'b'), newComment('bob', 'no-such-item')));
+    await assertFails(setDoc(comment('bob', 'c'), { ...newComment('bob'), text: 'x'.repeat(501) }));
+  });
+
+  test('members cannot jump comment counts by more than one', async () => {
+    await assertFails(updateDoc(list('bob'), { commentCount: 5 }));
+    await assertFails(updateDoc(item('bob'), { commentCount: 5 }));
+  });
+
+  test('only the creator can delete comments', async () => {
+    await commentBatch('bob').commit();
+    await assertFails(deleteDoc(comment('bob')));
+    await assertSucceeds(deleteDoc(comment('alice')));
   });
 });

@@ -1,8 +1,18 @@
 import { onSnapshot, orderBy, query, where, collection } from 'firebase/firestore';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { db } from '@/lib/firebase';
-import { itemsRef, listRef, toItem, toList, type Item, type ShoppingList } from '@/lib/lists';
+import {
+  commentsRef,
+  itemsRef,
+  listRef,
+  toComment,
+  toItem,
+  toList,
+  type Comment,
+  type Item,
+  type ShoppingList,
+} from '@/lib/lists';
 
 type Snapshot<T> = { data: T; loading: boolean; error: Error | null };
 
@@ -42,7 +52,45 @@ export function useList(listId: string): Snapshot<ShoppingList | null> {
   return state;
 }
 
-/** Items in a list: unchecked first, then checked, each in the order they were added. */
+/** All comments on a list, oldest first. */
+export function useComments(listId: string): Snapshot<Comment[]> {
+  const [state, setState] = useState<Snapshot<Comment[]>>({ data: [], loading: true, error: null });
+
+  useEffect(() => {
+    return onSnapshot(
+      query(commentsRef(listId), orderBy('createdAt', 'asc')),
+      (snap) => setState({ data: snap.docs.map(toComment), loading: false, error: null }),
+      (error) => setState((s) => ({ ...s, loading: false, error })),
+    );
+  }, [listId]);
+
+  return state;
+}
+
+/**
+ * Live ticked/total item counts for one list (null until loaded). Used by My Lists; it reads
+ * every item, which is fine at household scale.
+ */
+export function useItemCounts(listId: string): { done: number; total: number } | null {
+  const [counts, setCounts] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    return onSnapshot(
+      itemsRef(listId),
+      (snap) =>
+        setCounts({ total: snap.size, done: snap.docs.filter((d) => d.get('checked') === true).length }),
+      // e.g. permission lost after leaving: just show no count.
+      () => setCounts(null),
+    );
+  }, [listId]);
+
+  return counts;
+}
+
+/**
+ * Items in a list, in the order they were added. Ticking an item doesn't move it: it stays
+ * in place, struck through.
+ */
 export function useItems(listId: string): Snapshot<Item[]> {
   const [state, setState] = useState<Snapshot<Item[]>>({ data: [], loading: true, error: null });
 
@@ -54,10 +102,5 @@ export function useItems(listId: string): Snapshot<Item[]> {
     );
   }, [listId]);
 
-  const sorted = useMemo(
-    () => [...state.data.filter((i) => !i.checked), ...state.data.filter((i) => i.checked)],
-    [state.data],
-  );
-
-  return { ...state, data: sorted };
+  return state;
 }
