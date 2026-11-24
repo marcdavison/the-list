@@ -40,10 +40,14 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
 
       allow update: if
-        // Members rename the list or bump its activity time.
-        (isMember(resource.data)
+        // Only the owner renames the list.
+        (signedIn()
+          && uid() == resource.data.ownerId
           && changedKeys().hasOnly(['name', 'updatedAt'])
           && validString(request.resource.data.name, 80))
+        // Members bump its activity time (alongside item changes).
+        || (isMember(resource.data)
+          && changedKeys().hasOnly(['updatedAt']))
         // Anyone with the link joins by appending only themselves.
         || (signedIn()
           && !(uid() in resource.data.memberIds)

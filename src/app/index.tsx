@@ -195,15 +195,18 @@ function ListRow({
         <ThemedText numberOfLines={1}>{list.name || 'Untitled list'}</ThemedText>
         {summary}
       </View>
-      <Pressable
-        onPress={startRename}
-        hitSlop={10}
-        accessibilityRole="button"
-        accessibilityLabel={`Rename ${list.name}`}>
-        <ThemedText type="small" style={{ color: theme.accent, fontWeight: 600 }}>
-          Rename
-        </ThemedText>
-      </Pressable>
+      {/* Only the list's creator can rename it (also enforced in firestore.rules). */}
+      {isOwner && (
+        <Pressable
+          onPress={startRename}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Rename ${list.name}`}>
+          <ThemedText type="small" style={{ color: theme.accent, fontWeight: 600 }}>
+            Rename
+          </ThemedText>
+        </Pressable>
+      )}
     </Pressable>
   );
 }

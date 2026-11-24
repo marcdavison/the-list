@@ -112,8 +112,10 @@ describe('lists', () => {
     await assertFails(updateDoc(list('eve'), { name: 'Mine now' }));
   });
 
-  test('members can rename; nobody can change the owner', async () => {
-    await assertSucceeds(updateDoc(list('bob'), { name: 'Weekly shop', updatedAt: serverTimestamp() }));
+  test('only the owner can rename; members can bump updatedAt; nobody can change the owner', async () => {
+    await assertFails(updateDoc(list('bob'), { name: 'Weekly shop', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(list('alice'), { name: 'Weekly shop', updatedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(list('bob'), { updatedAt: serverTimestamp() }));
     await assertFails(updateDoc(list('bob'), { ownerId: 'bob' }));
     await assertFails(updateDoc(list('alice'), { ownerId: 'bob' }));
   });
