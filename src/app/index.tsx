@@ -17,7 +17,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Button, CenteredMessage, Input } from '@/components/ui';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { SignedIn } from '@/hooks/use-auth';
-import { useMyLists } from '@/hooks/use-lists';
+import { useItemCounts, useMyLists } from '@/hooks/use-lists';
 import { useTheme } from '@/hooks/use-theme';
 import {
   createList,
@@ -116,6 +116,7 @@ function ListRow({
 }) {
   const theme = useTheme();
   const others = list.memberIds.length - 1;
+  const counts = useItemCounts(list.id);
   const [draft, setDraft] = useState(list.name);
 
   const startRename = () => {
@@ -192,7 +193,22 @@ function ListRow({
         { backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement },
       ]}>
       <View style={styles.rowText}>
-        <ThemedText numberOfLines={1}>{list.name || 'Untitled list'}</ThemedText>
+        <View style={styles.titleLine}>
+          <ThemedText numberOfLines={1} style={styles.titleText}>
+            {list.name || 'Untitled list'}
+          </ThemedText>
+          {counts && (
+            <ThemedText
+              themeColor="textSecondary"
+              accessibilityLabel={
+                counts.done > 0
+                  ? `${counts.done} of ${counts.total} items ticked`
+                  : `${counts.total} item${counts.total === 1 ? '' : 's'}`
+              }>
+              ({counts.done > 0 ? `${counts.done}/${counts.total}` : counts.total})
+            </ThemedText>
+          )}
+        </View>
         {summary}
       </View>
       {list.commentCount > 0 && (
@@ -241,6 +257,9 @@ const styles = StyleSheet.create({
   },
   rowLayout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   rowText: { flex: 1, gap: Spacing.half },
+  // A long name truncates with "…" but the (2/7) count stays visible.
+  titleLine: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.one },
+  titleText: { flexShrink: 1 },
   commentBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   chatIcon: { fontSize: 18, lineHeight: 24 },
   renameWrap: { gap: Spacing.two },

@@ -42,6 +42,26 @@ export function useList(listId: string): Snapshot<ShoppingList | null> {
   return state;
 }
 
+/**
+ * Live ticked/total item counts for one list (null until loaded). Used by My Lists; it reads
+ * every item, which is fine at household scale.
+ */
+export function useItemCounts(listId: string): { done: number; total: number } | null {
+  const [counts, setCounts] = useState<{ done: number; total: number } | null>(null);
+
+  useEffect(() => {
+    return onSnapshot(
+      itemsRef(listId),
+      (snap) =>
+        setCounts({ total: snap.size, done: snap.docs.filter((d) => d.get('checked') === true).length }),
+      // e.g. permission lost after leaving: just show no count.
+      () => setCounts(null),
+    );
+  }, [listId]);
+
+  return counts;
+}
+
 /** Items in a list: unchecked first, then checked, each in the order they were added. */
 export function useItems(listId: string): Snapshot<Item[]> {
   const [state, setState] = useState<Snapshot<Item[]>>({ data: [], loading: true, error: null });
