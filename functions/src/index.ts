@@ -19,9 +19,9 @@ import { sendToUsers } from './push.js';
 initializeApp();
 const db = getFirestore();
 
-// Keep a lid on cost from a runaway loop. If your Firestore database isn't in the default
-// location, add `region` here to match it (Firebase Console → Firestore → database location).
-setGlobalOptions({ maxInstances: 10 });
+// The Firestore database is in the eur3 (Europe) multi-region, so the functions run in
+// europe-west1, which is inside it. maxInstances keeps a lid on cost from a runaway loop.
+setGlobalOptions({ region: 'europe-west1', maxInstances: 10 });
 
 type List = { name?: string; ownerId?: string; memberIds?: string[] };
 type Item = { text?: string; checked?: boolean; checkedBy?: string | null };

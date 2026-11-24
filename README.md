@@ -71,7 +71,9 @@ When the app opens, it asks for permission to send notifications. If the person 
 4. **Deploy:** run `npm run deploy:functions`, and publish the latest [firestore.rules](firestore.rules).
 5. **Optional:** if you turn on "Enhanced security for push notifications" in Expo, set an `EXPO_ACCESS_TOKEN` environment variable for the functions.
 
-If the Firestore database isn't in the default `us-central1`-compatible location, add `region` to `setGlobalOptions` in [functions/src/index.ts](functions/src/index.ts).
+The functions run in `europe-west1`, to match the Firestore database in `eur3`. This is set in `setGlobalOptions` in [functions/src/index.ts](functions/src/index.ts).
+
+The first deploy can fail with "Permission denied while using the Eventarc Service Agent" while Google sets up permissions. Wait a few minutes and deploy again.
 
 ## Scripts
 
