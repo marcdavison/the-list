@@ -242,17 +242,28 @@ function ListRow({
           </ThemedText>
         </Pressable>
       )}
-      {/* Only the list's creator can rename it (also enforced in firestore.rules). */}
+      {/* Only the list's creator can rename or remove it (also enforced in firestore.rules). */}
       {isOwner && (
-        <Pressable
-          onPress={startRename}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={`Rename ${list.name}`}>
-          <ThemedText type="small" style={{ color: theme.accent, fontWeight: 600 }}>
-            Rename
-          </ThemedText>
-        </Pressable>
+        <View style={styles.ownerActions}>
+          <Pressable
+            onPress={startRename}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`Rename ${list.name}`}>
+            <ThemedText type="small" style={{ color: theme.accent, fontWeight: 600 }}>
+              Rename
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={confirmRemove}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${list.name}`}>
+            <ThemedText type="small" style={{ color: theme.danger, fontWeight: 600 }}>
+              Remove
+            </ThemedText>
+          </Pressable>
+        </View>
       )}
     </Pressable>
   );
@@ -280,6 +291,7 @@ const styles = StyleSheet.create({
   // A long name truncates with "…" but the (2/7) count stays visible.
   titleLine: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.one },
   titleText: { flexShrink: 1 },
+  ownerActions: { alignItems: 'flex-end', gap: Spacing.two },
   commentBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   renameWrap: { gap: Spacing.two },
   renameInput: { fontSize: 16, lineHeight: 24, fontWeight: 500, padding: 0 },
