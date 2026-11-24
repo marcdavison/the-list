@@ -40,14 +40,19 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
 
       allow update: if
-        // Only the owner renames the list.
+        // The owner renames the list, and lowers commentCount when deleting items with comments.
         (signedIn()
           && uid() == resource.data.ownerId
-          && changedKeys().hasOnly(['name', 'updatedAt'])
-          && validString(request.resource.data.name, 80))
-        // Members bump its activity time (alongside item changes).
+          && changedKeys().hasOnly(['name', 'updatedAt', 'commentCount'])
+          && validString(request.resource.data.name, 80)
+          && request.resource.data.get('commentCount', 0) is int
+          && request.resource.data.get('commentCount', 0) >= 0)
+        // Members bump its activity time (alongside item changes), and add one to
+        // commentCount when they post a comment.
         || (isMember(resource.data)
-          && changedKeys().hasOnly(['updatedAt']))
+          && changedKeys().hasOnly(['updatedAt', 'commentCount'])
+          && (!('commentCount' in changedKeys())
+            || request.resource.data.commentCount == resource.data.get('commentCount', 0) + 1))
         // Anyone with the link joins by appending only themselves.
         || (signedIn()
           && !(uid() in resource.data.memberIds)
@@ -68,7 +73,9 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/lists/$(listId)).data;
         }
 
-        allow read, delete: if isMember(parentList());
+        allow read: if isMember(parentList());
+        // Only the list's creator removes items.
+        allow delete: if signedIn() && uid() == parentList().ownerId;
 
         // Must match the ids in src/lib/shops.ts.
         function validShop(shop) {
@@ -84,11 +91,35 @@ service cloud.firestore {
           && request.resource.data.createdBy == uid()
           && request.resource.data.createdAt == request.time;
 
-        allow update: if isMember(parentList())
-          && changedKeys().hasOnly(['text', 'checked', 'checkedBy'])
-          && validString(request.resource.data.text, 200)
-          && request.resource.data.checked is bool
-          && (request.resource.data.checkedBy == null || request.resource.data.checkedBy == uid());
+        allow update: if isMember(parentList()) && (
+          // Edit or tick/untick the item.
+          (changedKeys().hasOnly(['text', 'checked', 'checkedBy'])
+            && validString(request.resource.data.text, 200)
+            && request.resource.data.checked is bool
+            && (request.resource.data.checkedBy == null || request.resource.data.checkedBy == uid()))
+          // Count a new comment.
+          || (changedKeys().hasOnly(['commentCount'])
+            && request.resource.data.commentCount == resource.data.get('commentCount', 0) + 1)
+        );
+      }
+
+      match /comments/{commentId} {
+        function list() {
+          return get(/databases/$(database)/documents/lists/$(listId)).data;
+        }
+
+        allow read: if isMember(list());
+
+        allow create: if isMember(list())
+          && request.resource.data.keys().hasOnly(['itemId', 'text', 'authorId', 'createdAt'])
+          && request.resource.data.authorId == uid()
+          && validString(request.resource.data.text, 500)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.itemId is string
+          && exists(/databases/$(database)/documents/lists/$(listId)/items/$(request.resource.data.itemId));
+
+        // Comments go when the creator deletes their item or the whole list.
+        allow delete: if signedIn() && uid() == list().ownerId;
       }
     }
   }

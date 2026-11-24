@@ -5,8 +5,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
   writeBatch,
   type DocumentSnapshot,
   type Timestamp,
@@ -21,6 +24,8 @@ export type ShoppingList = {
   name: string;
   ownerId: string;
   memberIds: string[];
+  /** Total comments across all items (0 when absent on older lists). */
+  commentCount: number;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 };
@@ -33,14 +38,26 @@ export type Item = {
   checked: boolean;
   createdBy: string;
   checkedBy: string | null;
+  /** Comments on this item (0 when absent). */
+  commentCount: number;
+  createdAt: Timestamp | null;
+};
+
+export type Comment = {
+  id: string;
+  itemId: string;
+  text: string;
+  authorId: string;
   createdAt: Timestamp | null;
 };
 
 export const MAX_ITEM_LENGTH = 200;
 export const MAX_NAME_LENGTH = 80;
+export const MAX_COMMENT_LENGTH = 500;
 
 export const listRef = (listId: string) => doc(db, 'lists', listId);
 export const itemsRef = (listId: string) => collection(db, 'lists', listId, 'items');
+export const commentsRef = (listId: string) => collection(db, 'lists', listId, 'comments');
 
 function uid() {
   const user = auth.currentUser;
@@ -51,12 +68,13 @@ function uid() {
 // serverTimestamps: 'estimate' gives pending local writes a timestamp instead of null,
 // so freshly added items sort correctly before the server acknowledges them.
 export function toList(snap: DocumentSnapshot): ShoppingList {
-  return { id: snap.id, ...(snap.data({ serverTimestamps: 'estimate' }) as Omit<ShoppingList, 'id'>) };
+  const data = snap.data({ serverTimestamps: 'estimate' }) as Omit<ShoppingList, 'id'>;
+  return { id: snap.id, ...data, commentCount: data.commentCount ?? 0 };
 }
 
 export function toItem(snap: DocumentSnapshot): Item {
   const data = snap.data({ serverTimestamps: 'estimate' }) as Omit<Item, 'id'>;
-  return { id: snap.id, ...data, shop: data.shop ?? null };
+  return { id: snap.id, ...data, shop: data.shop ?? null, commentCount: data.commentCount ?? 0 };
 }
 
 /**
@@ -101,8 +119,8 @@ export function renameList(listId: string, name: string) {
 
 /** Owner only: deletes every item, then the list (Firestore doesn't cascade). */
 export async function deleteList(listId: string) {
-  const items = await getDocs(itemsRef(listId));
-  const docs = items.docs;
+  const [items, comments] = await Promise.all([getDocs(itemsRef(listId)), getDocs(commentsRef(listId))]);
+  const docs = [...items.docs, ...comments.docs];
   // Batches are capped at 500 writes; keep the list doc delete in the final batch.
   for (let i = 0; i < docs.length || i === 0; i += 450) {
     const batch = writeBatch(db);
@@ -154,10 +172,43 @@ export function setItemChecked(listId: string, itemId: string, checked: boolean)
   batch.commit().catch(logError('setItemChecked'));
 }
 
+/**
+ * Owner only. Deletes the items and their comments, and takes those comments off the
+ * list's comment count so My Lists stays accurate.
+ */
 export function deleteItems(listId: string, itemIds: string[]) {
   if (!itemIds.length) return;
+  (async () => {
+    const ids = itemIds.slice(0, 200);
+    // Firestore 'in' queries accept at most 30 values.
+    const chunks = Array.from({ length: Math.ceil(ids.length / 30) }, (_, i) => ids.slice(i * 30, i * 30 + 30));
+    const commentSnaps = await Promise.all(
+      chunks.map((chunk) => getDocs(query(commentsRef(listId), where('itemId', 'in', chunk)))),
+    );
+    const comments = commentSnaps.flatMap((s) => s.docs);
+
+    const batch = writeBatch(db);
+    ids.forEach((id) => batch.delete(doc(itemsRef(listId), id)));
+    comments.forEach((c) => batch.delete(c.ref));
+    batch.update(listRef(listId), {
+      updatedAt: serverTimestamp(),
+      ...(comments.length ? { commentCount: increment(-comments.length) } : {}),
+    });
+    await batch.commit();
+  })().catch(logError('deleteItems'));
+}
+
+export function addComment(listId: string, itemId: string, text: string) {
+  const trimmed = text.trim().slice(0, MAX_COMMENT_LENGTH);
+  if (!trimmed) return;
   const batch = writeBatch(db);
-  itemIds.slice(0, 450).forEach((id) => batch.delete(doc(itemsRef(listId), id)));
-  batch.update(listRef(listId), { updatedAt: serverTimestamp() });
-  batch.commit().catch(logError('deleteItems'));
+  batch.set(doc(commentsRef(listId)), {
+    itemId,
+    text: trimmed,
+    authorId: uid(),
+    createdAt: serverTimestamp(),
+  });
+  batch.update(doc(itemsRef(listId), itemId), { commentCount: increment(1) });
+  batch.update(listRef(listId), { commentCount: increment(1), updatedAt: serverTimestamp() });
+  batch.commit().catch(logError('addComment'));
 }

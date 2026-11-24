@@ -195,6 +195,17 @@ function ListRow({
         <ThemedText numberOfLines={1}>{list.name || 'Untitled list'}</ThemedText>
         {summary}
       </View>
+      {list.commentCount > 0 && (
+        <View
+          style={styles.commentBadge}
+          accessible
+          accessibilityLabel={`${list.commentCount} comment${list.commentCount === 1 ? '' : 's'}`}>
+          <ThemedText style={styles.chatIcon}>💬</ThemedText>
+          <ThemedText type="smallBold" style={{ color: theme.accent }}>
+            {list.commentCount}
+          </ThemedText>
+        </View>
+      )}
       {/* Only the list's creator can rename it (also enforced in firestore.rules). */}
       {isOwner && (
         <Pressable
@@ -230,6 +241,8 @@ const styles = StyleSheet.create({
   },
   rowLayout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   rowText: { flex: 1, gap: Spacing.half },
+  commentBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  chatIcon: { fontSize: 18, lineHeight: 24 },
   renameWrap: { gap: Spacing.two },
   renameInput: { fontSize: 16, lineHeight: 24, fontWeight: 500, padding: 0 },
   renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.two },

@@ -20,8 +20,10 @@ import { useItems, useList } from '@/hooks/use-lists';
 import { useTheme } from '@/hooks/use-theme';
 import { shareUrl } from '@/lib/config';
 import {
+  addComment,
   addItem,
   deleteItems,
+  MAX_COMMENT_LENGTH,
   MAX_ITEM_LENGTH,
   setItemChecked,
   type Item,
@@ -83,9 +85,13 @@ function ListDetail({ list, uid }: { list: ShoppingList; uid: string }) {
   const [text, setText] = useState('');
   const [shop, setShop] = useState<ShopId | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [commentingId, setCommentingId] = useState<string | null>(null);
   const inputRef = useRef<TextInputRef>(null);
 
+  const isOwner = uid === list.ownerId;
   const done = items.filter((i) => i.checked).length;
+  // Null if the item being commented on was deleted meanwhile, which closes the box.
+  const commentingItem = items.find((i) => i.id === commentingId) ?? null;
   const sections = useMemo(() => groupByShop(items, collapsed), [items, collapsed]);
 
   const toggleSection = (key: string) =>
@@ -176,11 +182,18 @@ function ListDetail({ list, uid }: { list: ShoppingList; uid: string }) {
             </View>
           }
           renderItem={({ item }) => (
-            <ItemRow listId={list.id} item={item} canCheck={uid !== list.ownerId} />
+            <ItemRow
+              listId={list.id}
+              item={item}
+              isOwner={isOwner}
+              commenting={item.id === commentingId}
+              onComment={() => setCommentingId(item.id)}
+            />
           )}
           ListEmptyComponent={loading ? <CenteredMessage loading /> : undefined}
           ListFooterComponent={
-            done > 0 ? (
+            // Removing items is the creator's job, so only they see "Clear checked".
+            isOwner && done > 0 ? (
               <View style={styles.footer}>
                 <Button
                   title={`Clear ${done} checked`}
@@ -192,23 +205,33 @@ function ListDetail({ list, uid }: { list: ShoppingList; uid: string }) {
           }
         />
         <SafeAreaView edges={['bottom']} style={styles.composerWrap}>
-          <View style={styles.composerStack}>
-            <ShopPicker value={shop} onChange={setShop} />
-            <View style={styles.composer}>
-              <Input
-                ref={inputRef}
-                value={text}
-                onChangeText={setText}
-                editable={!!shop}
-                placeholder={shop ? `Add an item for ${shopLabel(shop)}` : 'Choose a shop first'}
-                maxLength={MAX_ITEM_LENGTH}
-                returnKeyType="done"
-                submitBehavior="submit"
-                onSubmitEditing={add}
-              />
-              <Button title="Add" onPress={add} disabled={!shop || !text.trim()} />
+          {commentingItem ? (
+            <CommentComposer
+              // A fresh composer (empty, focused) for each item.
+              key={commentingItem.id}
+              listId={list.id}
+              item={commentingItem}
+              onClose={() => setCommentingId(null)}
+            />
+          ) : (
+            <View style={styles.composerStack}>
+              <ShopPicker value={shop} onChange={setShop} />
+              <View style={styles.composer}>
+                <Input
+                  ref={inputRef}
+                  value={text}
+                  onChangeText={setText}
+                  editable={!!shop}
+                  placeholder={shop ? `Add an item for ${shopLabel(shop)}` : 'Choose a shop first'}
+                  maxLength={MAX_ITEM_LENGTH}
+                  returnKeyType="done"
+                  submitBehavior="submit"
+                  onSubmitEditing={add}
+                />
+                <Button title="Add" onPress={add} disabled={!shop || !text.trim()} />
+              </View>
             </View>
-          </View>
+          )}
         </SafeAreaView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -261,45 +284,125 @@ function ShopHeader({
 }
 
 /**
- * One item. `canCheck` is false for the list's creator: they write the list, and the people
- * it's shared with tick things off. The creator still sees ticked items struck through.
+ * One item: text, then a chat button (with its comment count), a tick button for
+ * "in the basket", and, for the list's creator only, a delete button.
  */
-function ItemRow({ listId, item, canCheck }: { listId: string; item: Item; canCheck: boolean }) {
+function ItemRow({
+  listId,
+  item,
+  isOwner,
+  commenting,
+  onComment,
+}: {
+  listId: string;
+  item: Item;
+  isOwner: boolean;
+  /** The comment box at the bottom of the screen is open for this item. */
+  commenting: boolean;
+  onComment: () => void;
+}) {
   const theme = useTheme();
   return (
-    <View style={[styles.itemRow, { borderBottomColor: theme.border }]}>
+    <View
+      style={[
+        styles.itemRow,
+        { borderBottomColor: theme.border },
+        commenting && { backgroundColor: theme.accentSoft },
+      ]}>
+      <ThemedText
+        style={[styles.itemText, item.checked && styles.checkedText]}
+        themeColor={item.checked ? 'textSecondary' : 'text'}>
+        {item.text}
+      </ThemedText>
+
       <Pressable
-        style={styles.itemMain}
-        disabled={!canCheck}
-        onPress={() => setItemChecked(listId, item.id, !item.checked)}
-        accessibilityRole={canCheck ? 'checkbox' : 'text'}
-        accessibilityState={{ checked: item.checked }}
-        accessibilityLabel={item.text}>
-        {canCheck && (
-          <View
-            style={[
-              styles.checkbox,
-              { borderColor: item.checked ? theme.accent : theme.textSecondary },
-              item.checked && { backgroundColor: theme.accent },
-            ]}>
-            {item.checked && <ThemedText style={[styles.tick, { color: theme.onAccent }]}>✓</ThemedText>}
-          </View>
-        )}
-        <ThemedText
-          style={[styles.flex, item.checked && styles.checkedText]}
-          themeColor={item.checked ? 'textSecondary' : 'text'}>
-          {item.text}
-        </ThemedText>
-      </Pressable>
-      <Pressable
-        onPress={() => deleteItems(listId, [item.id])}
-        hitSlop={12}
+        onPress={onComment}
+        hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel={`Delete ${item.text}`}>
-        <ThemedText themeColor="textSecondary" style={styles.delete}>
-          ×
+        accessibilityLabel={
+          item.commentCount
+            ? `Comment on ${item.text}, ${item.commentCount} comment${item.commentCount === 1 ? '' : 's'}`
+            : `Comment on ${item.text}`
+        }
+        style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+        <ThemedText style={styles.chatIcon}>💬</ThemedText>
+        {item.commentCount > 0 && (
+          <ThemedText type="smallBold" style={{ color: theme.accent }}>
+            {item.commentCount}
+          </ThemedText>
+        )}
+      </Pressable>
+
+      <Pressable
+        onPress={() => setItemChecked(listId, item.id, !item.checked)}
+        hitSlop={8}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: item.checked }}
+        accessibilityLabel={`${item.text} in basket`}
+        style={({ pressed }) => [
+          styles.tickButton,
+          { borderColor: item.checked ? theme.accent : theme.textSecondary, opacity: pressed ? 0.6 : 1 },
+          item.checked && { backgroundColor: theme.accent },
+        ]}>
+        <ThemedText style={[styles.tick, { color: item.checked ? theme.onAccent : theme.textSecondary }]}>
+          ✓
         </ThemedText>
       </Pressable>
+
+      {isOwner && (
+        <Pressable
+          onPress={() => deleteItems(listId, [item.id])}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${item.text}`}
+          style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+          <ThemedText themeColor="textSecondary" style={styles.delete}>
+            ×
+          </ThemedText>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/** Replaces the add-item bar while commenting, so it always sits above the keyboard. */
+function CommentComposer({
+  listId,
+  item,
+  onClose,
+}: {
+  listId: string;
+  item: Item;
+  onClose: () => void;
+}) {
+  const [comment, setComment] = useState('');
+
+  const submit = () => {
+    if (!comment.trim()) return;
+    addComment(listId, item.id, comment);
+    setComment('');
+    onClose();
+  };
+
+  return (
+    <View style={styles.composerStack}>
+      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+        Comment on <ThemedText type="smallBold">{item.text}</ThemedText>
+      </ThemedText>
+      <Input
+        value={comment}
+        onChangeText={setComment}
+        autoFocus
+        multiline
+        maxLength={MAX_COMMENT_LENGTH}
+        placeholder="Can't find it? Need to ask something?"
+        accessibilityLabel={`Comment on ${item.text}`}
+        style={styles.commentInput}
+      />
+      <View style={styles.commentActions}>
+        <Button title="Close" variant="plain" onPress={onClose} />
+        <Button title="Comment" onPress={submit} disabled={!comment.trim()} />
+      </View>
     </View>
   );
 }
@@ -320,26 +423,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+    paddingHorizontal: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  itemMain: {
-    flex: 1,
+  itemText: { flex: 1, paddingVertical: Spacing.three },
+  iconButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
+    gap: Spacing.one,
+    minWidth: 28,
+    minHeight: 28,
+    justifyContent: 'center',
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  chatIcon: { fontSize: 18, lineHeight: 24 },
+  tickButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tick: { fontSize: 14, lineHeight: 16, fontWeight: 700 },
+  tick: { fontSize: 15, lineHeight: 18, fontWeight: 700 },
   checkedText: { textDecorationLine: 'line-through' },
-  delete: { fontSize: 24, lineHeight: 28, paddingHorizontal: Spacing.one },
+  delete: { fontSize: 24, lineHeight: 28 },
+  commentInput: { flex: 0, minHeight: 72, maxHeight: 140, textAlignVertical: 'top' },
+  commentActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.two },
   footer: { paddingTop: Spacing.three, alignItems: 'center' },
   shopHeader: {
     flexDirection: 'row',
