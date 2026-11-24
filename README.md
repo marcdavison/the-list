@@ -52,6 +52,27 @@ xcrun simctl openurl booted https://the-list-af068.web.app/l/<listId>
 adb shell am start -a android.intent.action.VIEW -d https://the-list-af068.web.app/l/<listId>
 ```
 
+## Push notifications
+
+The app uses `expo-notifications` and Expo's push service. Firebase Cloud Functions in [functions/](functions/) send the notifications.
+
+| Event | Who is notified |
+| --- | --- |
+| New comment on an item | Everyone else on the list |
+| The last unticked item is ticked | Everyone on the list except the person who ticked it |
+
+When the app opens, it asks for permission to send notifications. If the person allows it, the app saves the device's Expo push token to their private `users/{uid}` document. Tapping a notification opens the list it's about.
+
+**One-time setup:**
+
+1. **EAS project:** run `npx eas-cli@latest init`, then paste the project ID into `EAS_PROJECT_ID` in [app.config.ts](app.config.ts). Without it the app can't get a push token.
+2. **Development build:** run `npx eas-cli@latest build --profile development`. Expo Go on Android can't receive remote push. iOS also needs APNs credentials (EAS sets these up) and Android needs FCM V1 credentials.
+3. **Blaze plan:** upgrade the Firebase project to the Blaze plan, which Cloud Functions require.
+4. **Deploy:** run `npm run deploy:functions`, and publish the latest [firestore.rules](firestore.rules).
+5. **Optional:** if you turn on "Enhanced security for push notifications" in Expo, set an `EXPO_ACCESS_TOKEN` environment variable for the functions.
+
+If the Firestore database isn't in the default `us-central1`-compatible location, add `region` to `setGlobalOptions` in [functions/src/index.ts](functions/src/index.ts).
+
 ## Scripts
 
 | Script | What it does |
@@ -59,6 +80,7 @@ adb shell am start -a android.intent.action.VIEW -d https://the-list-af068.web.a
 | `npm start` / `ios` / `android` | Expo dev server |
 | `npm run typecheck` / `lint` | `tsc --noEmit` / `expo lint` |
 | `npm run deploy:firebase` | Deploys Firestore rules and Hosting |
+| `npm run deploy:functions` | Builds and deploys the Cloud Functions in `functions/` (needs the Blaze plan) |
 | `npm run emulators` | Local Auth, Firestore and Hosting emulators. Set `EXPO_PUBLIC_USE_EMULATORS=true` in `.env` to point the app at them. Needs Java 21 or later. |
 | `npm run test:rules` | Security-rules tests in [tests/](tests/), run against the emulator. Needs Java 21 or later. |
 
@@ -72,6 +94,8 @@ src/app/l/[id].tsx       Share-link entry: joins the list, then opens it
 src/lib/firebase.ts      Firebase init (.web.ts variant for web)
 src/lib/lists.ts         All Firestore reads and writes
 src/hooks/use-lists.ts   Realtime hooks (useMyLists, useList, useItems)
+src/lib/notifications.ts Notification consent and push-token registration
+functions/src/           Cloud Functions (push notifications via Expo)
 firestore.rules          Who can read and write what
 hosting/public/          Share-link fallback page and app-association files
 ```
