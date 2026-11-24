@@ -99,17 +99,31 @@ function ListDetail({ list, uid }: { list: ShoppingList; uid: string }) {
       return next;
     });
 
+  const expandSection = (key: string) =>
+    setCollapsed((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+
+  // Tapping a different shop selects it (and opens it) so new items go there;
+  // tapping the already-selected shop, or "Other", just opens/closes it.
+  const onShopHeaderPress = (key: string) => {
+    const isRealShop = SHOPS.some((s) => s.id === key);
+    if (isRealShop && key !== shop) {
+      setShop(key as ShopId);
+      expandSection(key);
+    } else {
+      toggleSection(key);
+    }
+  };
+
   const add = () => {
     if (!shop || !text.trim()) return;
     addItem(list.id, shop, text);
     setText('');
-    // Make sure the new item is visible if its shop was collapsed.
-    setCollapsed((prev) => {
-      if (!prev.has(shop)) return prev;
-      const next = new Set(prev);
-      next.delete(shop);
-      return next;
-    });
+    expandSection(shop); // make sure the new item is visible if its shop was collapsed
     inputRef.current?.focus(); // keep the keyboard up for rapid entry
   };
 
@@ -149,7 +163,8 @@ function ListDetail({ list, uid }: { list: ShoppingList; uid: string }) {
             <ShopHeader
               section={section}
               open={!collapsed.has(section.key)}
-              onToggle={() => toggleSection(section.key)}
+              selected={section.key === shop}
+              onPress={() => onShopHeaderPress(section.key)}
             />
           )}
           ListHeaderComponent={
@@ -237,29 +252,36 @@ function ListName({ list }: { list: ShoppingList }) {
 function ShopHeader({
   section,
   open,
-  onToggle,
+  selected,
+  onPress,
 }: {
   section: ShopSection;
   open: boolean;
-  onToggle: () => void;
+  /** This is the shop new items are being added to. */
+  selected: boolean;
+  onPress: () => void;
 }) {
   const theme = useTheme();
   const allDone = section.done === section.total;
+  const background = selected ? theme.accentSoft : theme.backgroundElement;
   return (
     <Pressable
-      onPress={onToggle}
+      onPress={onPress}
       accessibilityRole="button"
-      accessibilityState={{ expanded: open }}
+      accessibilityState={{ expanded: open, selected }}
       accessibilityLabel={`${section.title}, ${section.done} of ${section.total} done`}
-      accessibilityHint={open ? 'Collapses this shop' : 'Expands this shop'}
+      accessibilityHint={
+        selected ? (open ? 'Collapses this shop' : 'Expands this shop') : 'Adds new items to this shop'
+      }
       style={({ pressed }) => [
         styles.shopHeader,
-        { backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement },
+        { backgroundColor: background, opacity: pressed ? 0.7 : 1 },
+        selected && { borderColor: theme.accent },
       ]}>
       <ThemedText style={[styles.chevron, { transform: [{ rotate: open ? '90deg' : '0deg' }] }]}>
         ›
       </ThemedText>
-      <ThemedText type="smallBold" style={styles.flex}>
+      <ThemedText type="smallBold" style={[styles.flex, selected && { color: theme.accent }]}>
         {section.title}
       </ThemedText>
       <ThemedText type="small" style={{ color: allDone ? theme.accent : theme.textSecondary }}>
@@ -358,6 +380,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two + 2,
     borderRadius: 10,
+    // Always reserve the border so selecting a shop doesn't shift the layout.
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     marginTop: Spacing.three,
   },
   chevron: { fontSize: 22, lineHeight: 22, width: 14, textAlign: 'center' },
