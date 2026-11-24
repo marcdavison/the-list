@@ -3,8 +3,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { StyleSheet, useColorScheme, View } from 'react-native';
 
+import { NameGate } from '@/components/name-gate';
 import { Button, CenteredMessage } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { ProfileProvider } from '@/hooks/use-profile';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -34,14 +36,17 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
-        {/* The navigator is always mounted so incoming links are never dropped;
-            screens wait for the user via <SignedIn>. */}
-        <Stack>
-          <Stack.Screen name="index" options={{ title: 'My Lists' }} />
-          <Stack.Screen name="list/[id]" options={{ title: '' }} />
-          <Stack.Screen name="l/[id]" options={{ title: 'Opening list…', headerBackVisible: false }} />
-        </Stack>
-        <AuthStatus />
+        <ProfileProvider>
+          {/* The navigator is always mounted so incoming links are never dropped;
+              screens wait for the user via <SignedIn>. */}
+          <Stack>
+            <Stack.Screen name="index" options={{ title: 'My Lists' }} />
+            <Stack.Screen name="list/[id]" options={{ title: '' }} />
+            <Stack.Screen name="l/[id]" options={{ title: 'Opening list…', headerBackVisible: false }} />
+          </Stack>
+          <NameGate />
+          <AuthStatus />
+        </ProfileProvider>
       </AuthProvider>
     </ThemeProvider>
   );

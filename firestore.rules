@@ -26,6 +26,19 @@ service cloud.firestore {
       return s is string && s.size() > 0 && s.size() <= max;
     }
 
+    // Private per-user profile: display name and when each list's comments were last viewed.
+    // Only readable by its owner, since lastSeenComments would reveal their list ids.
+    match /users/{userId} {
+      allow read: if signedIn() && uid() == userId;
+      allow create, update: if signedIn()
+        && uid() == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'lastSeenComments'])
+        && (!('displayName' in request.resource.data)
+          || validString(request.resource.data.displayName, 40))
+        && (!('lastSeenComments' in request.resource.data)
+          || request.resource.data.lastSeenComments is map);
+    }
+
     match /lists/{listId} {
       // get: needed to open a share link before joining. list: only your own lists.
       allow get: if signedIn();
@@ -111,8 +124,9 @@ service cloud.firestore {
         allow read: if isMember(list());
 
         allow create: if isMember(list())
-          && request.resource.data.keys().hasOnly(['itemId', 'text', 'authorId', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['itemId', 'text', 'authorId', 'authorName', 'createdAt'])
           && request.resource.data.authorId == uid()
+          && (!('authorName' in request.resource.data) || validString(request.resource.data.authorName, 40))
           && validString(request.resource.data.text, 500)
           && request.resource.data.createdAt == request.time
           && request.resource.data.itemId is string

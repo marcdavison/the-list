@@ -48,6 +48,8 @@ export type Comment = {
   itemId: string;
   text: string;
   authorId: string;
+  /** The author's display name when they wrote it (absent on older comments). */
+  authorName?: string;
   createdAt: Timestamp | null;
 };
 
@@ -202,7 +204,8 @@ export function deleteItems(listId: string, itemIds: string[]) {
   })().catch(logError('deleteItems'));
 }
 
-export function addComment(listId: string, itemId: string, text: string) {
+/** `authorName` is copied onto the comment, since other users can't read your profile. */
+export function addComment(listId: string, itemId: string, text: string, authorName: string | null) {
   const trimmed = text.trim().slice(0, MAX_COMMENT_LENGTH);
   if (!trimmed) return;
   const batch = writeBatch(db);
@@ -210,6 +213,7 @@ export function addComment(listId: string, itemId: string, text: string) {
     itemId,
     text: trimmed,
     authorId: uid(),
+    ...(authorName ? { authorName } : {}),
     createdAt: serverTimestamp(),
   });
   batch.update(doc(itemsRef(listId), itemId), { commentCount: increment(1) });

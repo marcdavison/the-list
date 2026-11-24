@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-import type { ShoppingList } from '@/lib/lists';
+import type { Comment, ShoppingList } from '@/lib/lists';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -26,11 +26,18 @@ export function formatWhen(ts: Timestamp | null, now = new Date()): string {
 }
 
 /**
- * Users are anonymous, so authors are named by role: "You", "List creator", or "Shopper"
- * (numbered by join order when several people have joined).
+ * "You" for your own comments, otherwise the name stored on the comment. Older comments
+ * without a name fall back to a role: "List creator", "Shopper" (numbered by join order
+ * when several people have joined), or "Former member".
  */
-export function authorLabel(authorId: string, list: ShoppingList, myUid: string): string {
+export function authorLabel(
+  comment: Pick<Comment, 'authorId' | 'authorName'>,
+  list: ShoppingList,
+  myUid: string,
+): string {
+  const { authorId, authorName } = comment;
   if (authorId === myUid) return 'You';
+  if (authorName) return authorName;
   if (authorId === list.ownerId) return 'List creator';
   const shoppers = list.memberIds.filter((id) => id !== list.ownerId);
   const index = shoppers.indexOf(authorId);

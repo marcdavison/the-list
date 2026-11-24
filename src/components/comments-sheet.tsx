@@ -96,7 +96,7 @@ function CommentsBody({ list, uid }: { list: ShoppingList; uid: string }) {
             <View key={c.id} style={styles.comment}>
               <ThemedText type="small">{c.text}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary" style={styles.meta}>
-                {authorLabel(c.authorId, list, uid)} · {formatWhen(c.createdAt)}
+                {authorLabel(c, list, uid)} · {formatWhen(c.createdAt)}
               </ThemedText>
             </View>
           ))}

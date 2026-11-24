@@ -18,6 +18,7 @@ import { Button, CenteredMessage, Input, type TextInputRef } from '@/components/
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { SignedIn } from '@/hooks/use-auth';
 import { useItems, useList } from '@/hooks/use-lists';
+import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
 import { shareUrl } from '@/lib/config';
 import {
@@ -380,10 +381,11 @@ function CommentComposer({
   onClose: () => void;
 }) {
   const [comment, setComment] = useState('');
+  const { profile } = useProfile();
 
   const submit = () => {
     if (!comment.trim()) return;
-    addComment(listId, item.id, comment);
+    addComment(listId, item.id, comment, profile?.displayName ?? null);
     setComment('');
     onClose();
   };
