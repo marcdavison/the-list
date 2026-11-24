@@ -1,6 +1,15 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -10,7 +19,14 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { SignedIn } from '@/hooks/use-auth';
 import { useMyLists } from '@/hooks/use-lists';
 import { useTheme } from '@/hooks/use-theme';
-import { createList, deleteList, leaveList, MAX_NAME_LENGTH, type ShoppingList } from '@/lib/lists';
+import {
+  createList,
+  deleteList,
+  leaveList,
+  MAX_NAME_LENGTH,
+  renameList,
+  type ShoppingList,
+} from '@/lib/lists';
 
 export default function MyListsScreen() {
   return <SignedIn>{(uid) => <MyLists uid={uid} />}</SignedIn>;
@@ -19,6 +35,8 @@ export default function MyListsScreen() {
 function MyLists({ uid }: { uid: string }) {
   const { data: lists, loading, error } = useMyLists(uid);
   const [name, setName] = useState('');
+  // Only one list can be renamed at a time.
+  const [renamingId, setRenamingId] = useState<string | null>(null);
 
   const create = () => {
     if (!name.trim()) return;
@@ -40,7 +58,17 @@ function MyLists({ uid }: { uid: string }) {
           // iOS: inset content below the translucent native header (and status bar).
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={styles.content}
-          renderItem={({ item }) => <ListRow list={item} isOwner={item.ownerId === uid} />}
+          // Lets the Save button receive taps while the keyboard is open.
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => (
+            <ListRow
+              list={item}
+              isOwner={item.ownerId === uid}
+              renaming={renamingId === item.id}
+              onRename={() => setRenamingId(item.id)}
+              onRenameDone={() => setRenamingId(null)}
+            />
+          )}
           ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
           ListEmptyComponent={
             loading ? (
@@ -73,9 +101,34 @@ function MyLists({ uid }: { uid: string }) {
   );
 }
 
-function ListRow({ list, isOwner }: { list: ShoppingList; isOwner: boolean }) {
+function ListRow({
+  list,
+  isOwner,
+  renaming,
+  onRename,
+  onRenameDone,
+}: {
+  list: ShoppingList;
+  isOwner: boolean;
+  renaming: boolean;
+  onRename: () => void;
+  onRenameDone: () => void;
+}) {
   const theme = useTheme();
   const others = list.memberIds.length - 1;
+  const [draft, setDraft] = useState(list.name);
+
+  const startRename = () => {
+    setDraft(list.name);
+    onRename();
+  };
+
+  const save = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return; // Save is disabled for an empty name
+    if (trimmed !== list.name) renameList(list.id, trimmed);
+    onRenameDone();
+  };
 
   const confirmRemove = () => {
     if (isOwner) {
@@ -96,6 +149,38 @@ function ListRow({ list, isOwner }: { list: ShoppingList; isOwner: boolean }) {
     }
   };
 
+  const summary = (
+    <ThemedText type="small" themeColor="textSecondary">
+      {others > 0 ? `Shared with ${others} ${others === 1 ? 'person' : 'people'}` : 'Only you'}
+      {isOwner ? '' : ' · Shared with you'}
+    </ThemedText>
+  );
+
+  if (renaming) {
+    return (
+      <View style={styles.renameWrap}>
+        <View style={[styles.row, { backgroundColor: theme.backgroundElement, borderColor: theme.accent }]}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            autoFocus
+            selectTextOnFocus // highlights the current name so typing replaces it
+            maxLength={MAX_NAME_LENGTH}
+            returnKeyType="done"
+            onSubmitEditing={save}
+            accessibilityLabel="New list name"
+            style={[styles.renameInput, { color: theme.text }]}
+          />
+          {summary}
+        </View>
+        <View style={styles.renameActions}>
+          <Button title="Cancel" variant="plain" onPress={onRenameDone} />
+          <Button title="Save" onPress={save} disabled={!draft.trim()} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <Pressable
       onPress={() => router.push({ pathname: '/list/[id]', params: { id: list.id } })}
@@ -103,13 +188,22 @@ function ListRow({ list, isOwner }: { list: ShoppingList; isOwner: boolean }) {
       accessibilityHint={isOwner ? 'Long press to delete' : 'Long press to leave'}
       style={({ pressed }) => [
         styles.row,
+        styles.rowLayout,
         { backgroundColor: pressed ? theme.backgroundSelected : theme.backgroundElement },
       ]}>
-      <ThemedText numberOfLines={1}>{list.name || 'Untitled list'}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {others > 0 ? `Shared with ${others} ${others === 1 ? 'person' : 'people'}` : 'Only you'}
-        {isOwner ? '' : ' · Shared with you'}
-      </ThemedText>
+      <View style={styles.rowText}>
+        <ThemedText numberOfLines={1}>{list.name || 'Untitled list'}</ThemedText>
+        {summary}
+      </View>
+      <Pressable
+        onPress={startRename}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={`Rename ${list.name}`}>
+        <ThemedText type="small" style={{ color: theme.accent, fontWeight: 600 }}>
+          Rename
+        </ThemedText>
+      </Pressable>
     </Pressable>
   );
 }
@@ -123,7 +217,19 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  row: { padding: Spacing.three, borderRadius: 12, gap: Spacing.half },
+  row: {
+    padding: Spacing.three,
+    borderRadius: 12,
+    gap: Spacing.half,
+    // Reserved so the accent border in rename mode doesn't shift the layout.
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  rowLayout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  rowText: { flex: 1, gap: Spacing.half },
+  renameWrap: { gap: Spacing.two },
+  renameInput: { fontSize: 16, lineHeight: 24, fontWeight: 500, padding: 0 },
+  renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.two },
   composerWrap: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
   composer: {
     flexDirection: 'row',

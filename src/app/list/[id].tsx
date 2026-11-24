@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -7,7 +7,6 @@ import {
   SectionList,
   Share,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,8 +23,6 @@ import {
   addItem,
   deleteItems,
   MAX_ITEM_LENGTH,
-  MAX_NAME_LENGTH,
-  renameList,
   setItemChecked,
   type Item,
   type ShoppingList,
@@ -169,7 +166,10 @@ function ListDetail({ list, uid }: { list: ShoppingList; uid: string }) {
           )}
           ListHeaderComponent={
             <View style={styles.header}>
-              <ListName list={list} />
+              {/* Read-only here; lists are renamed from My Lists. */}
+              <ThemedText style={styles.title} accessibilityRole="header">
+                {list.name || 'Untitled list'}
+              </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {items.length === 0 ? 'No items yet' : `${done} of ${items.length} done`}
               </ThemedText>
@@ -215,38 +215,6 @@ function ListDetail({ list, uid }: { list: ShoppingList; uid: string }) {
   );
 }
 
-/** The list name, editable in place. Saves on blur/submit. */
-function ListName({ list }: { list: ShoppingList }) {
-  const theme = useTheme();
-  const [name, setName] = useState(list.name);
-
-  // Pick up renames made by other people, unless we're mid-edit.
-  const editing = useRef(false);
-  useEffect(() => {
-    if (!editing.current) setName(list.name);
-  }, [list.name]);
-
-  const save = () => {
-    editing.current = false;
-    if (name.trim() && name.trim() !== list.name) renameList(list.id, name);
-    else setName(list.name);
-  };
-
-  return (
-    <TextInput
-      value={name}
-      onChangeText={setName}
-      onFocus={() => (editing.current = true)}
-      onBlur={save}
-      onSubmitEditing={save}
-      maxLength={MAX_NAME_LENGTH}
-      placeholder="List name"
-      placeholderTextColor={theme.textSecondary}
-      accessibilityLabel="List name"
-      style={[styles.title, { color: theme.text }]}
-    />
-  );
-}
 
 /** Tappable shop heading that opens/closes that shop's items. */
 function ShopHeader({
@@ -347,7 +315,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   header: { paddingVertical: Spacing.three, gap: Spacing.one },
-  title: { fontSize: 28, fontWeight: 700, padding: 0 },
+  title: { fontSize: 28, lineHeight: 34, fontWeight: 700 },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
