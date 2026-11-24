@@ -102,7 +102,7 @@ function MyLists({ uid }: { uid: string }) {
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
-      <CommentsSheet list={commentsList} onClose={() => setCommentsListId(null)} />
+      <CommentsSheet list={commentsList} uid={uid} onClose={() => setCommentsListId(null)} />
     </ThemedView>
   );
 }

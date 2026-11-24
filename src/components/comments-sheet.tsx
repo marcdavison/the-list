@@ -7,12 +7,22 @@ import { Button } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useComments, useItems } from '@/hooks/use-lists';
 import { useTheme } from '@/hooks/use-theme';
+import { authorLabel, formatWhen } from '@/lib/format';
 import type { Comment, ShoppingList } from '@/lib/lists';
 
 type ItemComments = { itemId: string; itemName: string; comments: Comment[] };
 
 /** Bottom sheet listing a list's comments, grouped under each item's name. */
-export function CommentsSheet({ list, onClose }: { list: ShoppingList | null; onClose: () => void }) {
+export function CommentsSheet({
+  list,
+  uid,
+  onClose,
+}: {
+  list: ShoppingList | null;
+  /** The viewer, so their own comments read "You". */
+  uid: string;
+  onClose: () => void;
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -31,16 +41,16 @@ export function CommentsSheet({ list, onClose }: { list: ShoppingList | null; on
           <Button title="Close" variant="plain" onPress={onClose} />
         </View>
         {/* Mounted only while open, so comments are only fetched when someone looks. */}
-        {list && <CommentsBody listId={list.id} />}
+        {list && <CommentsBody list={list} uid={uid} />}
       </View>
     </Modal>
   );
 }
 
-function CommentsBody({ listId }: { listId: string }) {
+function CommentsBody({ list, uid }: { list: ShoppingList; uid: string }) {
   const theme = useTheme();
-  const { data: comments, loading, error } = useComments(listId);
-  const { data: items } = useItems(listId);
+  const { data: comments, loading, error } = useComments(list.id);
+  const { data: items } = useItems(list.id);
 
   const groups = useMemo<ItemComments[]>(() => {
     const names = new Map(items.map((i) => [i.id, i.text]));
@@ -83,9 +93,12 @@ function CommentsBody({ listId }: { listId: string }) {
         <View style={styles.group}>
           <ThemedText type="smallBold">{group.itemName}</ThemedText>
           {group.comments.map((c) => (
-            <ThemedText key={c.id} type="small" themeColor="textSecondary">
-              {c.text}
-            </ThemedText>
+            <View key={c.id} style={styles.comment}>
+              <ThemedText type="small">{c.text}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.meta}>
+                {authorLabel(c.authorId, list, uid)} · {formatWhen(c.createdAt)}
+              </ThemedText>
+            </View>
           ))}
         </View>
       )}
@@ -105,7 +118,9 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   list: { paddingVertical: Spacing.two },
-  group: { gap: Spacing.one, paddingVertical: Spacing.three },
+  group: { gap: Spacing.two, paddingVertical: Spacing.three },
+  comment: { gap: Spacing.half },
+  meta: { fontSize: 12, lineHeight: 16 },
   separator: { height: StyleSheet.hairlineWidth },
   status: { paddingVertical: Spacing.four, textAlign: 'center' },
 });
