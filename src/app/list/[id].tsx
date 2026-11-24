@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -269,14 +270,17 @@ function ShopHeader({
         { backgroundColor: background, opacity: pressed ? 0.7 : 1 },
         selected && { borderColor: theme.accent },
       ]}>
-      <ThemedText style={[styles.chevron, { transform: [{ rotate: open ? '90deg' : '0deg' }] }]}>
-        ›
-      </ThemedText>
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color={selected ? theme.accent : theme.textSecondary}
+        style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}
+      />
       <ThemedText type="smallBold" style={[styles.flex, selected && { color: theme.accent }]}>
         {section.title}
       </ThemedText>
+      {allDone && <Ionicons name="checkmark" size={16} color={theme.accent} />}
       <ThemedText type="small" style={{ color: allDone ? theme.accent : theme.textSecondary }}>
-        {allDone ? '✓ ' : ''}
         {section.done}/{section.total}
       </ThemedText>
     </Pressable>
@@ -325,7 +329,11 @@ function ItemRow({
             : `Comment on ${item.text}`
         }
         style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
-        <ThemedText style={styles.chatIcon}>💬</ThemedText>
+        <Ionicons
+          name={item.commentCount > 0 ? 'chatbubble' : 'chatbubble-outline'}
+          size={22}
+          color={item.commentCount > 0 ? theme.accent : theme.textSecondary}
+        />
         {item.commentCount > 0 && (
           <ThemedText type="smallBold" style={{ color: theme.accent }}>
             {item.commentCount}
@@ -339,14 +347,12 @@ function ItemRow({
         accessibilityRole="checkbox"
         accessibilityState={{ checked: item.checked }}
         accessibilityLabel={`${item.text} in basket`}
-        style={({ pressed }) => [
-          styles.tickButton,
-          { borderColor: item.checked ? theme.accent : theme.textSecondary, opacity: pressed ? 0.6 : 1 },
-          item.checked && { backgroundColor: theme.accent },
-        ]}>
-        <ThemedText style={[styles.tick, { color: item.checked ? theme.onAccent : theme.textSecondary }]}>
-          ✓
-        </ThemedText>
+        style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+        <Ionicons
+          name={item.checked ? 'checkmark-circle' : 'ellipse-outline'}
+          size={28}
+          color={item.checked ? theme.accent : theme.textSecondary}
+        />
       </Pressable>
 
       {isOwner && (
@@ -356,9 +362,7 @@ function ItemRow({
           accessibilityRole="button"
           accessibilityLabel={`Delete ${item.text}`}
           style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
-          <ThemedText themeColor="textSecondary" style={styles.delete}>
-            ×
-          </ThemedText>
+          <Ionicons name="close" size={24} color={theme.textSecondary} />
         </Pressable>
       )}
     </View>
@@ -435,18 +439,7 @@ const styles = StyleSheet.create({
     minHeight: 28,
     justifyContent: 'center',
   },
-  chatIcon: { fontSize: 18, lineHeight: 24 },
-  tickButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tick: { fontSize: 15, lineHeight: 18, fontWeight: 700 },
   checkedText: { textDecorationLine: 'line-through' },
-  delete: { fontSize: 24, lineHeight: 28 },
   commentInput: { flex: 0, minHeight: 72, maxHeight: 140, textAlignVertical: 'top' },
   commentActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.two },
   footer: { paddingTop: Spacing.three, alignItems: 'center' },
@@ -462,7 +455,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     marginTop: Spacing.three,
   },
-  chevron: { fontSize: 22, lineHeight: 22, width: 14, textAlign: 'center' },
   composerWrap: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
   composerStack: {
     gap: Spacing.two,

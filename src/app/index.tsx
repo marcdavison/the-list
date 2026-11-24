@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -226,7 +227,7 @@ function ListRow({
           accessibilityRole="button"
           accessibilityLabel={`Show ${list.commentCount} comment${list.commentCount === 1 ? '' : 's'}`}
           style={({ pressed }) => [styles.commentBadge, { opacity: pressed ? 0.6 : 1 }]}>
-          <ThemedText style={styles.chatIcon}>💬</ThemedText>
+          <Ionicons name="chatbubble-outline" size={20} color={theme.accent} />
           <ThemedText type="smallBold" style={{ color: theme.accent }}>
             {list.commentCount}
           </ThemedText>
@@ -271,7 +272,6 @@ const styles = StyleSheet.create({
   titleLine: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.one },
   titleText: { flexShrink: 1 },
   commentBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  chatIcon: { fontSize: 18, lineHeight: 24 },
   renameWrap: { gap: Spacing.two },
   renameInput: { fontSize: 16, lineHeight: 24, fontWeight: 500, padding: 0 },
   renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.two },

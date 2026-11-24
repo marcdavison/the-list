@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,7 +38,7 @@ export function ShopPicker({
         <ThemedText themeColor={value ? 'text' : 'textSecondary'} style={styles.flex}>
           {value ? shopLabel(value) : 'Choose a shop'}
         </ThemedText>
-        <ThemedText themeColor="textSecondary">▾</ThemedText>
+        <Ionicons name="chevron-down" size={18} color={theme.textSecondary} />
       </Pressable>
 
       <Modal
@@ -73,7 +74,7 @@ export function ShopPicker({
                     { backgroundColor: pressed || selected ? theme.backgroundElement : 'transparent' },
                   ]}>
                   <ThemedText style={styles.flex}>{item.label}</ThemedText>
-                  {selected && <ThemedText style={{ color: theme.accent }}>✓</ThemedText>}
+                  {selected && <Ionicons name="checkmark" size={20} color={theme.accent} />}
                 </Pressable>
               );
             }}
