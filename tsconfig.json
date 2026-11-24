@@ -8,6 +8,11 @@
       ],
       "@/assets/*": [
         "./assets/*"
+      ],
+      // Metro resolves firebase/auth to its React Native build at runtime, but TypeScript
+      // picks the browser types, which lack getReactNativePersistence. Point TS at the RN types.
+      "@firebase/auth": [
+        "./node_modules/@firebase/auth/dist/index.rn.d.ts"
       ]
     }
   },
@@ -16,5 +21,10 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "hosting",
+    "tests"
   ]
 }

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared shopping list</title>
+  <meta name="description" content="Someone shared a shopping list with you.">
+  <meta property="og:title" content="Someone shared a shopping list with you">
+  <meta property="og:description" content="Open it in the Shopping List app to add items and tick them off together.">
+  <style>
+    :root {
+      --bg: #ffffff; --surface: #f0f0f3; --text: #111113; --muted: #60646c;
+      --accent: #1a7ad9; --on-accent: #ffffff;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #000000; --surface: #212225; --text: #ffffff; --muted: #b0b4ba; --accent: #3b9eff; --on-accent: #000000; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+      background: var(--bg); color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { width: 100%; max-width: 420px; text-align: center; }
+    .icon { font-size: 56px; line-height: 1; }
+    h1 { font-size: 24px; margin: 16px 0 8px; }
+    p { color: var(--muted); margin: 0 0 24px; }
+    .actions { display: grid; gap: 12px; }
+    a.button, button {
+      display: block; width: 100%; padding: 14px 16px; border-radius: 12px; border: 0;
+      font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
+    }
+    .primary { background: var(--accent); color: var(--on-accent); }
+    .secondary { background: var(--surface); color: var(--text); }
+    .hint { font-size: 14px; margin-top: 24px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="icon" aria-hidden="true">🛒</div>
+    <h1>Someone shared a shopping list with you</h1>
+    <p>Get the Shopping List app to see it, add items and tick things off together.</p>
+
+    <div class="actions">
+      <a id="ios" class="button primary" hidden>Download on the App Store</a>
+      <a id="android" class="button primary" hidden>Get it on Google Play</a>
+      <p id="soon" hidden>The app is coming soon to the App Store and Google Play.</p>
+      <button id="copy" class="secondary" type="button">Copy link</button>
+    </div>
+
+    <p class="hint">Already installed the app? Tap the link you were sent again and it will open the list.</p>
+  </main>
+
+  <script>
+    // Fill these in once the app is published. While they're empty the page says "coming soon".
+    var APP_STORE_URL = '';  // e.g. https://apps.apple.com/app/id1234567890
+    var PLAY_STORE_URL = ''; // e.g. https://play.google.com/store/apps/details?id=com.lesterlabs.shoppinglist
+
+    var ua = navigator.userAgent;
+    var isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    var isAndroid = /Android/.test(ua);
+
+    function show(id, href) {
+      var el = document.getElementById(id);
+      el.href = href;
+      el.hidden = false;
+    }
+
+    if (!APP_STORE_URL && !PLAY_STORE_URL) {
+      document.getElementById('soon').hidden = false;
+    } else if (isIOS && APP_STORE_URL) {
+      show('ios', APP_STORE_URL);
+    } else if (isAndroid && PLAY_STORE_URL) {
+      show('android', PLAY_STORE_URL);
+    } else {
+      // Desktop (or a store URL is missing for this platform): offer both.
+      if (APP_STORE_URL) show('ios', APP_STORE_URL);
+      if (PLAY_STORE_URL) show('android', PLAY_STORE_URL);
+    }
+
+    // If this page loaded on a phone, the app isn't installed (otherwise the OS would have
+    // opened it), so head to the store after a moment.
+    var store = isIOS ? APP_STORE_URL : isAndroid ? PLAY_STORE_URL : '';
+    if (store) setTimeout(function () { window.location.href = store; }, 1500);
+
+    document.getElementById('copy').addEventListener('click', function () {
+      var btn = this;
+      navigator.clipboard.writeText(window.location.href).then(function () {
+        btn.textContent = 'Link copied';
+      }, function () {
+        btn.textContent = 'Couldn’t copy. Copy the address bar instead';
+      });
+    });
+  </script>
+</body>
+</html>

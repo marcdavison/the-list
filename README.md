@@ -1,56 +1,77 @@
-# Welcome to your Expo app 👋
+# Shopping List
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native (Expo) app for making shopping lists and sharing them with a link. Everyone who opens the link can add items and tick them off, and changes sync live through Firebase.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- **App:** Expo SDK 58, expo-router and TypeScript
+- **Firebase:** anonymous sign-in, Firestore for lists and items, and Hosting for share links and app-association files
+- **Firebase project:** `the-list-af068` (set in `.firebaserc` and `.env`)
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Setup
 
 ```bash
-npm run reset-project
+nvm use            # Node 22 (see .nvmrc)
+npm install
+cp .env.example .env   # then fill in, if .env doesn't exist yet
+npm start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+### One-time Firebase Console setup
 
-### Other setup steps
+1. **Authentication** → Sign-in method: enable **Anonymous**.
+2. **Firestore Database**: create a database. Production mode is fine, because the rules below control access.
+3. Paste the contents of [firestore.rules](firestore.rules) into the **Firestore** → **Rules** tab and publish them, or run `npx firebase login` and then `npm run deploy:firebase` (this also deploys hosting).
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## How sharing works
 
-## Learn more
+- Each list's Firestore ID (20 random characters) is its share secret. The share link is `https://the-list-af068.web.app/l/<listId>`.
+- When someone opens the link, the app's [src/app/l/[id].tsx](src/app/l/[id].tsx) route adds them to the list's `memberIds`, then shows the list.
+- If the app isn't installed, the link opens [hosting/public/l/index.html](hosting/public/l/index.html), which sends the person to the App Store or Google Play.
+- There is no deferred deep linking: after installing, the person has to tap the link again.
 
-To learn more about developing your project with Expo, look at the following resources:
+### Before universal links and app links work
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+These need the app to be registered with Apple and Google, and need a development build. They don't work in Expo Go.
 
-## Join the community
+| File | Replace |
+| --- | --- |
+| `hosting/public/.well-known/apple-app-site-association` | `APPLE_TEAM_ID` with your Apple Developer Team ID |
+| `hosting/public/.well-known/assetlinks.json` | `ANDROID_SHA256_FINGERPRINT` with the output of `npx eas-cli@latest credentials -p android` |
+| `hosting/public/l/index.html` | `APP_STORE_URL` and `PLAY_STORE_URL`, once the app is published |
 
-Join our community of developers creating universal apps.
+Then deploy hosting and make a build: `npx eas-cli@latest build --profile development`.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+The bundle ID and package name are both `com.lesterlabs.shoppinglist`, set in [app.config.ts](app.config.ts).
+
+To test links:
+
+```bash
+npx uri-scheme open "shoppinglist://l/<listId>" --ios     # custom scheme, works in development
+xcrun simctl openurl booted https://the-list-af068.web.app/l/<listId>
+adb shell am start -a android.intent.action.VIEW -d https://the-list-af068.web.app/l/<listId>
+```
+
+## Scripts
+
+| Script | What it does |
+| --- | --- |
+| `npm start` / `ios` / `android` | Expo dev server |
+| `npm run typecheck` / `lint` | `tsc --noEmit` / `expo lint` |
+| `npm run deploy:firebase` | Deploys Firestore rules and Hosting |
+| `npm run emulators` | Local Auth, Firestore and Hosting emulators. Set `EXPO_PUBLIC_USE_EMULATORS=true` in `.env` to point the app at them. Needs Java 21 or later. |
+| `npm run test:rules` | Security-rules tests in [tests/](tests/), run against the emulator. Needs Java 21 or later. |
+
+## Project layout
+
+```
+src/app/_layout.tsx      Stack navigator, anonymous sign-in, splash handling
+src/app/index.tsx        My Lists (create; long-press to delete or leave)
+src/app/list/[id].tsx    List detail (add, tick, delete, clear checked, rename, share)
+src/app/l/[id].tsx       Share-link entry: joins the list, then opens it
+src/lib/firebase.ts      Firebase init (.web.ts variant for web)
+src/lib/lists.ts         All Firestore reads and writes
+src/hooks/use-lists.ts   Realtime hooks (useMyLists, useList, useItems)
+firestore.rules          Who can read and write what
+hosting/public/          Share-link fallback page and app-association files
+```

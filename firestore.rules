@@ -1,0 +1,91 @@
+rules_version = '2';
+
+// Access model: a list's id is an unguessable 20-char token that appears in the share link.
+// Anyone signed in (anonymously) who has the id can read the list doc and join it; only
+// members can see or change its items.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function isMember(list) {
+      return signedIn() && uid() in list.memberIds;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function validString(s, max) {
+      return s is string && s.size() > 0 && s.size() <= max;
+    }
+
+    match /lists/{listId} {
+      // get: needed to open a share link before joining. list: only your own lists.
+      allow get: if signedIn();
+      allow list: if signedIn() && uid() in resource.data.memberIds;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['name', 'ownerId', 'memberIds', 'createdAt', 'updatedAt'])
+        && request.resource.data.ownerId == uid()
+        && request.resource.data.memberIds == [uid()]
+        && validString(request.resource.data.name, 80)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if
+        // Members rename the list or bump its activity time.
+        (isMember(resource.data)
+          && changedKeys().hasOnly(['name', 'updatedAt'])
+          && validString(request.resource.data.name, 80))
+        // Anyone with the link joins by appending only themselves.
+        || (signedIn()
+          && !(uid() in resource.data.memberIds)
+          && changedKeys().hasOnly(['memberIds'])
+          && request.resource.data.memberIds == resource.data.memberIds.concat([uid()]))
+        // Non-owner members leave by removing only themselves.
+        || (isMember(resource.data)
+          && uid() != resource.data.ownerId
+          && changedKeys().hasOnly(['memberIds'])
+          && request.resource.data.memberIds == resource.data.memberIds.removeAll([uid()]));
+
+      allow delete: if signedIn() && uid() == resource.data.ownerId;
+
+      match /items/{itemId} {
+        // get() sees the parent as it was before the request, so deleting items and the
+        // list together in one batch still passes this check.
+        function parentList() {
+          return get(/databases/$(database)/documents/lists/$(listId)).data;
+        }
+
+        allow read, delete: if isMember(parentList());
+
+        // Must match the ids in src/lib/shops.ts.
+        function validShop(shop) {
+          return shop in ['lidl', 'ms', 'aldi', 'sainsburys', 'tesco', 'morrisons', 'waitrose', 'home-bargains', 'bm'];
+        }
+
+        allow create: if isMember(parentList())
+          && request.resource.data.keys().hasOnly(['text', 'shop', 'checked', 'createdBy', 'checkedBy', 'createdAt'])
+          && validShop(request.resource.data.shop)
+          && validString(request.resource.data.text, 200)
+          && request.resource.data.checked == false
+          && request.resource.data.checkedBy == null
+          && request.resource.data.createdBy == uid()
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if isMember(parentList())
+          && changedKeys().hasOnly(['text', 'checked', 'checkedBy'])
+          && validString(request.resource.data.text, 200)
+          && request.resource.data.checked is bool
+          && (request.resource.data.checkedBy == null || request.resource.data.checkedBy == uid());
+      }
+    }
+  }
+}

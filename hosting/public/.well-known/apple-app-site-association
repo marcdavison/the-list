@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["APPLE_TEAM_ID.com.lesterlabs.shoppinglist"],
+        "components": [{ "/": "/l/*" }]
+      },
+      {
+        "appID": "APPLE_TEAM_ID.com.lesterlabs.shoppinglist",
+        "paths": ["/l/*"]
+      }
+    ]
+  }
+}
