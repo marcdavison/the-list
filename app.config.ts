@@ -3,6 +3,9 @@ import type { ExpoConfig } from 'expo/config';
 // Expo CLI loads .env before evaluating this file, so the share host lives in one place.
 const SHARE_HOST = process.env.EXPO_PUBLIC_SHARE_HOST ?? 'localhost';
 const BUNDLE_ID = 'com.lesterlabs.shoppinglist';
+// From `npx eas-cli@latest init`. Needed for Expo push tokens; not a secret, so it lives
+// here (not .env) so cloud EAS builds see it too.
+const EAS_PROJECT_ID = '';
 
 const config: ExpoConfig = {
   name: 'Shopping List',
@@ -41,8 +44,10 @@ const config: ExpoConfig = {
     output: 'single',
     favicon: './assets/images/favicon.png',
   },
+  ...(EAS_PROJECT_ID ? { extra: { eas: { projectId: EAS_PROJECT_ID } } } : {}),
   plugins: [
     'expo-router',
+    ['expo-notifications', { color: '#208AEF', defaultChannel: 'default' }],
     [
       'expo-splash-screen',
       {

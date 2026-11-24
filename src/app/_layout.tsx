@@ -6,12 +6,19 @@ import { StyleSheet, useColorScheme, View } from 'react-native';
 import { NameGate } from '@/components/name-gate';
 import { Button, CenteredMessage } from '@/components/ui';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { useNotifications } from '@/hooks/use-notifications';
 import { ProfileProvider } from '@/hooks/use-profile';
 
 SplashScreen.preventAutoHideAsync();
 
 // When the app is cold-started from a share link, put My Lists underneath so Back works.
 export const unstable_settings = { initialRouteName: 'index' };
+
+/** Notification consent, push registration and tap handling (renders nothing). */
+function Notifications() {
+  useNotifications();
+  return null;
+}
 
 /** Keeps the splash up while signing in; shows a retry screen if sign-in fails. */
 function AuthStatus() {
@@ -46,6 +53,7 @@ export default function RootLayout() {
           </Stack>
           <NameGate />
           <AuthStatus />
+          <Notifications />
         </ProfileProvider>
       </AuthProvider>
     </ThemeProvider>

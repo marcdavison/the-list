@@ -32,7 +32,10 @@ service cloud.firestore {
       allow read: if signedIn() && uid() == userId;
       allow create, update: if signedIn()
         && uid() == userId
-        && request.resource.data.keys().hasOnly(['displayName', 'lastSeenComments'])
+        && request.resource.data.keys().hasOnly(['displayName', 'lastSeenComments', 'pushTokens'])
+        // Expo push tokens for this user's devices (read by Cloud Functions via the Admin SDK).
+        && (!('pushTokens' in request.resource.data)
+          || (request.resource.data.pushTokens is list && request.resource.data.pushTokens.size() <= 10))
         && (!('displayName' in request.resource.data)
           || validString(request.resource.data.displayName, 40))
         && (!('lastSeenComments' in request.resource.data)
