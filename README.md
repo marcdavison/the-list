@@ -81,7 +81,7 @@ The first deploy can fail with "Permission denied while using the Eventarc Servi
 | --- | --- |
 | `npm start` / `ios` / `android` | Expo dev server |
 | `npm run typecheck` / `lint` | `tsc --noEmit` / `expo lint` |
-| `npm run deploy:firebase` | Deploys Firestore rules and Hosting |
+| `npm run deploy:firebase` | Deploys Firestore rules, Storage rules and Hosting |
 | `npm run deploy:functions` | Builds and deploys the Cloud Functions in `functions/` (needs the Blaze plan) |
 | `npm run emulators` | Local Auth, Firestore and Hosting emulators. Set `EXPO_PUBLIC_USE_EMULATORS=true` in `.env` to point the app at them. Needs Java 21 or later. |
 | `npm run test:rules` | Security-rules tests in [tests/](tests/), run against the emulator. Needs Java 21 or later. |
