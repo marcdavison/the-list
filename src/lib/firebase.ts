@@ -8,6 +8,7 @@ import {
   type Auth,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 
 import { firebaseConfig, emulatorHost, useEmulators } from '@/lib/config';
 
@@ -25,9 +26,11 @@ function createAuth(): Auth {
 
 export const auth = createAuth();
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 if (useEmulators && !(globalThis as { __emulatorsConnected?: boolean }).__emulatorsConnected) {
   (globalThis as { __emulatorsConnected?: boolean }).__emulatorsConnected = true;
   connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
   connectFirestoreEmulator(db, emulatorHost, 8080);
+  connectStorageEmulator(storage, emulatorHost, 9199);
 }

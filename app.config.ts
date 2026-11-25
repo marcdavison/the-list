@@ -49,6 +49,15 @@ const config: ExpoConfig = {
     'expo-router',
     ['expo-notifications', { color: '#208AEF', defaultChannel: 'default' }],
     [
+      'expo-image-picker',
+      {
+        // Shown in the iOS camera permission prompt.
+        cameraPermission: 'Take a photo of an item to attach it to a comment on your list.',
+        // We only take still photos, so don't ask for the microphone on Android.
+        microphonePermission: false,
+      },
+    ],
+    [
       'expo-splash-screen',
       {
         backgroundColor: '#208AEF',

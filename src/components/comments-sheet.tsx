@@ -1,4 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,10 +28,21 @@ export function CommentsSheet({
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  // Full-screen photo, drawn inside the same Modal (nested Modals are unreliable on iOS).
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
+  const close = () => {
+    setPhotoUrl(null);
+    onClose();
+  };
 
   return (
-    <Modal visible={!!list} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close comments" />
+    <Modal
+      visible={!!list}
+      transparent
+      animationType="fade"
+      onRequestClose={() => (photoUrl ? setPhotoUrl(null) : close())}>
+      <Pressable style={styles.backdrop} onPress={close} accessibilityLabel="Close comments" />
       <View
         style={[
           styles.sheet,
@@ -39,16 +52,36 @@ export function CommentsSheet({
           <ThemedText type="smallBold" style={styles.flex} numberOfLines={1}>
             Comments · {list?.name}
           </ThemedText>
-          <Button title="Close" variant="plain" onPress={onClose} />
+          <Button title="Close" variant="plain" onPress={close} />
         </View>
         {/* Mounted only while open, so comments are only fetched when someone looks. */}
-        {list && <CommentsBody list={list} uid={uid} />}
+        {list && <CommentsBody list={list} uid={uid} onOpenPhoto={setPhotoUrl} />}
       </View>
+
+      {photoUrl && (
+        <Pressable
+          style={styles.viewer}
+          onPress={() => setPhotoUrl(null)}
+          accessibilityLabel="Close photo">
+          <Image source={{ uri: photoUrl }} style={styles.flex} contentFit="contain" />
+          <View style={[styles.viewerClose, { top: insets.top + Spacing.two }]}>
+            <Ionicons name="close-circle" size={36} color="#ffffff" />
+          </View>
+        </Pressable>
+      )}
     </Modal>
   );
 }
 
-function CommentsBody({ list, uid }: { list: ShoppingList; uid: string }) {
+function CommentsBody({
+  list,
+  uid,
+  onOpenPhoto,
+}: {
+  list: ShoppingList;
+  uid: string;
+  onOpenPhoto: (url: string) => void;
+}) {
   const theme = useTheme();
   const { data: comments, loading, error } = useComments(list.id);
   const { data: items } = useItems(list.id);
@@ -101,7 +134,20 @@ function CommentsBody({ list, uid }: { list: ShoppingList; uid: string }) {
           <ThemedText type="smallBold">{group.itemName}</ThemedText>
           {group.comments.map((c) => (
             <View key={c.id} style={styles.comment}>
-              <ThemedText type="small">{c.text}</ThemedText>
+              {!!c.text && <ThemedText type="small">{c.text}</ThemedText>}
+              {c.imageUrl && (
+                <Pressable
+                  onPress={() => onOpenPhoto(c.imageUrl!)}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={`Photo of ${group.itemName}. Tap to enlarge`}>
+                  <Image
+                    source={{ uri: c.imageUrl }}
+                    style={[styles.photo, { backgroundColor: theme.backgroundElement }]}
+                    contentFit="cover"
+                    transition={150}
+                  />
+                </Pressable>
+              )}
               <ThemedText type="small" themeColor="textSecondary" style={styles.meta}>
                 {authorLabel(c, list, uid)} · {formatWhen(c.createdAt)}
               </ThemedText>
@@ -128,6 +174,9 @@ const styles = StyleSheet.create({
   group: { gap: Spacing.two, paddingVertical: Spacing.three },
   comment: { gap: Spacing.half },
   meta: { fontSize: 12, lineHeight: 16 },
+  photo: { width: 160, height: 160, borderRadius: 10 },
+  viewer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#000000' },
+  viewerClose: { position: 'absolute', right: Spacing.three },
   separator: { height: StyleSheet.hairlineWidth },
   status: { paddingVertical: Spacing.four, textAlign: 'center' },
 });

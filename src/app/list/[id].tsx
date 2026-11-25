@@ -1,7 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -31,6 +33,7 @@ import {
   type Item,
   type ShoppingList,
 } from '@/lib/lists';
+import { takePhoto } from '@/lib/photos';
 import { OTHER_SHOP, SHOPS, shopLabel, type ShopId } from '@/lib/shops';
 
 type ShopSection = {
@@ -380,14 +383,36 @@ function CommentComposer({
   item: Item;
   onClose: () => void;
 }) {
+  const theme = useTheme();
   const [comment, setComment] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const { profile } = useProfile();
 
-  const submit = () => {
-    if (!comment.trim()) return;
-    addComment(listId, item.id, comment, profile?.displayName ?? null);
-    setComment('');
-    onClose();
+  const canSend = (!!comment.trim() || !!photoUri) && !sending;
+
+  const attachPhoto = async () => {
+    try {
+      const uri = await takePhoto();
+      if (uri) setPhotoUri(uri);
+    } catch (e) {
+      console.warn('[photos] takePhoto failed', e);
+      Alert.alert("Couldn't take a photo", 'Please try again.');
+    }
+  };
+
+  const submit = async () => {
+    if (!canSend) return;
+    setSending(true);
+    try {
+      await addComment(listId, item.id, comment, profile?.displayName ?? null, photoUri);
+      onClose();
+    } catch (e) {
+      // Only photo uploads can fail here; keep the text and photo so they can retry.
+      console.warn('[photos] upload failed', e);
+      Alert.alert("Couldn't send the photo", 'Check your connection and try again.');
+      setSending(false);
+    }
   };
 
   return (
@@ -395,19 +420,46 @@ function CommentComposer({
       <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
         Comment on <ThemedText type="smallBold">{item.text}</ThemedText>
       </ThemedText>
-      <Input
-        value={comment}
-        onChangeText={setComment}
-        autoFocus
-        multiline
-        maxLength={MAX_COMMENT_LENGTH}
-        placeholder="Can't find it? Need to ask something?"
-        accessibilityLabel={`Comment on ${item.text}`}
-        style={styles.commentInput}
-      />
+      <View style={styles.composer}>
+        <Input
+          value={comment}
+          onChangeText={setComment}
+          autoFocus
+          multiline
+          editable={!sending}
+          maxLength={MAX_COMMENT_LENGTH}
+          placeholder={photoUri ? 'Add a question, e.g. "Is this correct?"' : "Can't find it? Need to ask something?"}
+          accessibilityLabel={`Comment on ${item.text}`}
+          style={styles.commentInput}
+        />
+        <Pressable
+          onPress={attachPhoto}
+          disabled={sending}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={photoUri ? 'Retake photo' : 'Take a photo'}
+          style={({ pressed }) => [styles.cameraButton, { opacity: pressed || sending ? 0.5 : 1 }]}>
+          <Ionicons name={photoUri ? 'camera' : 'camera-outline'} size={28} color={theme.accent} />
+        </Pressable>
+      </View>
+      {photoUri && (
+        <View style={styles.photoPreview}>
+          <Image source={{ uri: photoUri }} style={styles.photoThumb} contentFit="cover" />
+          {!sending && (
+            <Pressable
+              onPress={() => setPhotoUri(null)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Remove photo"
+              style={[styles.photoRemove, { backgroundColor: theme.background }]}>
+              <Ionicons name="close-circle" size={24} color={theme.textSecondary} />
+            </Pressable>
+          )}
+        </View>
+      )}
       <View style={styles.commentActions}>
-        <Button title="Close" variant="plain" onPress={onClose} />
-        <Button title="Comment" onPress={submit} disabled={!comment.trim()} />
+        <Button title="Close" variant="plain" onPress={onClose} disabled={sending} />
+        <Button title={sending ? 'Sending…' : 'Comment'} onPress={submit} disabled={!canSend} />
       </View>
     </View>
   );
@@ -442,7 +494,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkedText: { textDecorationLine: 'line-through' },
-  commentInput: { flex: 0, minHeight: 72, maxHeight: 140, textAlignVertical: 'top' },
+  commentInput: { minHeight: 72, maxHeight: 140, textAlignVertical: 'top' },
+  cameraButton: { alignSelf: 'center', padding: Spacing.one },
+  photoPreview: { alignSelf: 'flex-start' },
+  photoThumb: { width: 96, height: 96, borderRadius: 10 },
+  photoRemove: { position: 'absolute', top: -8, right: -8, borderRadius: 12 },
   commentActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.two },
   footer: { paddingTop: Spacing.three, alignItems: 'center' },
   shopHeader: {
