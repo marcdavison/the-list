@@ -1,18 +1,24 @@
 /**
- * Cloud Functions for the Shopping List app. Each one reacts to a Firestore write and sends
- * a push notification through Expo's push service to the other people on the list.
+ * Cloud Functions for the Shopping List app. They react to Firestore writes: two send push
+ * notifications through Expo's push service, one cleans up comment photos in Storage.
  *
  * Data model (see ../../src/lib/lists.ts and ../../firestore.rules):
  *   lists/{listId}                     name, ownerId, memberIds[]
  *   lists/{listId}/items/{itemId}      text, checked, checkedBy
- *   lists/{listId}/comments/{id}       itemId, text, authorId, authorName?
+ *   lists/{listId}/comments/{id}       itemId, text, authorId, authorName?, imagePath?
+ *   (Storage) lists/{listId}/comments/{id}.jpg   comment photo
  *   users/{uid}                        displayName, pushTokens[]
  */
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import * as logger from 'firebase-functions/logger';
 import { setGlobalOptions } from 'firebase-functions/v2';
-import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import {
+  onDocumentCreated,
+  onDocumentDeleted,
+  onDocumentUpdated,
+} from 'firebase-functions/v2/firestore';
 
 import { sendToUsers } from './push.js';
 
@@ -25,7 +31,13 @@ setGlobalOptions({ region: 'europe-west1', maxInstances: 10 });
 
 type List = { name?: string; ownerId?: string; memberIds?: string[] };
 type Item = { text?: string; checked?: boolean; checkedBy?: string | null };
-type Comment = { itemId?: string; text?: string; authorId?: string; authorName?: string };
+type Comment = {
+  itemId?: string;
+  text?: string;
+  authorId?: string;
+  authorName?: string;
+  imagePath?: string;
+};
 
 const truncate = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
@@ -48,12 +60,29 @@ export const notifyOnComment = onDocumentCreated(
     const itemName = (itemSnap.data() as Item | undefined)?.text ?? 'an item';
     const author = comment.authorName ?? 'Someone';
 
+    const text = truncate(comment.text ?? '', 180);
+    const hasPhoto = !!comment.imagePath;
+
     await sendToUsers(db, recipients, {
-      title: `${author} commented on ${itemName}`,
-      body: truncate(comment.text ?? '', 180),
+      title: hasPhoto ? `${author} sent a photo of ${itemName}` : `${author} commented on ${itemName}`,
+      body: hasPhoto ? (text ? `📷 ${text}` : '📷 Photo') : text,
       subtitle: list.name,
       data: { listId, type: 'comment' },
     });
+  },
+);
+
+/**
+ * A comment was deleted (with its item, or the whole list) → delete its photo from Storage.
+ * The app can't do this itself reliably, since deletes happen in Firestore batches.
+ */
+export const deleteCommentPhoto = onDocumentDeleted(
+  'lists/{listId}/comments/{commentId}',
+  async (event) => {
+    const imagePath = (event.data?.data() as Comment | undefined)?.imagePath;
+    if (!imagePath) return;
+    await getStorage().bucket().file(imagePath).delete({ ignoreNotFound: true });
+    logger.info('Deleted comment photo', { imagePath });
   },
 );
 

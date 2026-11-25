@@ -129,10 +129,19 @@ service cloud.firestore {
         allow read: if isMember(list());
 
         allow create: if isMember(list())
-          && request.resource.data.keys().hasOnly(['itemId', 'text', 'authorId', 'authorName', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['itemId', 'text', 'authorId', 'authorName', 'imagePath', 'imageUrl', 'createdAt'])
           && request.resource.data.authorId == uid()
           && (!('authorName' in request.resource.data) || validString(request.resource.data.authorName, 40))
-          && validString(request.resource.data.text, 500)
+          // Text is required unless there's a photo; a photo-only comment has text ''.
+          && (validString(request.resource.data.text, 500)
+            || (request.resource.data.text == '' && 'imagePath' in request.resource.data))
+          // A photo must live at this comment's own path (see storage.rules).
+          && (!('imagePath' in request.resource.data)
+            || request.resource.data.imagePath == 'lists/' + listId + '/comments/' + commentId + '.jpg')
+          && (!('imageUrl' in request.resource.data)
+            || ('imagePath' in request.resource.data
+              && request.resource.data.imageUrl is string
+              && request.resource.data.imageUrl.size() <= 2048))
           && request.resource.data.createdAt == request.time
           && request.resource.data.itemId is string
           && exists(/databases/$(database)/documents/lists/$(listId)/items/$(request.resource.data.itemId));
